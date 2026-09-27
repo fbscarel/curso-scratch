@@ -1,0 +1,12 @@
+work/
+out/
+repo/
+pkgs/
+profile/pacman.conf
+profile/airootfs/usr/share/scratchlab/extensions/
+profile/airootfs/etc/NetworkManager/
+profile/airootfs/etc/firefox/policies/
+profile/airootfs/etc/skel/.config/mozilla/
+profile/airootfs/etc/skel/Aulas/
+profile/airootfs/root/*.hash
+secrets/

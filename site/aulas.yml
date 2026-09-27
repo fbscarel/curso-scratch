@@ -1,0 +1,21 @@
+aulas:
+  - numero: 1
+    titulo: O computador e o nosso primeiro programa
+    data: 2026-09-29
+    resumo:
+      - "As partes do computador por fora (monitor, gabinete, teclado, mouse, caixas de som) e por dentro: o processador é o **cérebro**, a memória RAM é a **mesa de estudo** e o armazenamento é o **armário**."
+      - "O caminho da informação: **entrada → processamento → saída**."
+      - "Um **programa** é uma lista de instruções, em ordem. O computador faz exatamente o que mandamos — nem mais, nem menos!"
+      - "O nosso primeiro programa no Scratch: o gato anda, diz **Olá, mundo!** e mia."
+    projeto: Aula1-TreinoDoMouse
+    projeto_descricao: "Treino do mouse: estoure os balões, abra os presentes e leve as frutas até a tigela."
+  - numero: 2
+    titulo: Onde está o gato? Coordenadas no Scratch
+    data: 2026-10-02
+    resumo:
+      - "Para achar um lugar precisamos de **dois números**: primeiro o **x** (para o lado), depois o **y** (para cima ou para baixo)."
+      - "**Números negativos** ficam antes do zero, como no termômetro e no subsolo do elevador."
+      - "O palco do Scratch vai de **-240 a 240** no x e de **-180 a 180** no y. O gato começa no centro: **(0, 0)**."
+      - "Mover o gato com as **setas do teclado** usando o bloco `adicione 10 a x`."
+    projeto: Aula2-CacaAsCoordenadas
+    projeto_descricao: "Caça às coordenadas: descubra o x e o y da estrela e ganhe pontos."

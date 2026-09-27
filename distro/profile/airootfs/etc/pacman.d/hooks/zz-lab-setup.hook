@@ -1,0 +1,13 @@
+# remove from airootfs!
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = *
+
+[Action]
+Description = ScratchLab: locales, users, services...
+When = PostTransaction
+Depends = shadow
+Depends = systemd
+Exec = /usr/local/sbin/lab-setup

@@ -1,0 +1,43 @@
+site_name: Curso de Scratch — Top Cursos
+site_url: https://fbscarel.github.io/curso-scratch/
+site_description: Curso gratuito de programação com Scratch para crianças de 8 a 13 anos — Top Cursos, Santana/BA. Fichas, desafios, slides e projetos das aulas.
+repo_url: https://github.com/fbscarel/curso-scratch
+repo_name: fbscarel/curso-scratch
+
+# O nav (lista de aulas) é gerado por gen.py a partir de aulas.yml.
+INHERIT: build/mkdocs-nav.yml
+
+docs_dir: build/docs
+site_dir: build/_site
+
+copyright: 'Materiais: <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.pt-br">CC BY-SA 4.0</a> · Código: MIT · Scratch é um projeto da Scratch Foundation, em colaboração com o Lifelong Kindergarten Group do MIT Media Lab. Personagem Scratch Cat © Scratch Foundation, licença CC BY-SA 2.0. Curso independente, sem afiliação ao MIT ou à Scratch Foundation.'
+
+theme:
+  name: material
+  language: pt-BR
+  font: false
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-sunny
+        name: Mudar para o modo escuro
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-night
+        name: Mudar para o modo claro
+
+plugins:
+  - search
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - admonition
+  - tables
+  - toc:
+      permalink: false
+
+extra:
+  generator: false

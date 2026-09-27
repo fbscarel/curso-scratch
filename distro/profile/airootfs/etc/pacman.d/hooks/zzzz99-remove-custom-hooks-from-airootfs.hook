@@ -1,0 +1,16 @@
+# remove from airootfs!
+# Work around FS#49347: drop build-only hooks so they never fire inside the live system.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Removing build-only pacman hooks from airootfs...
+When = PostTransaction
+Depends = sh
+Depends = coreutils
+Depends = grep
+Exec = /bin/sh -c "rm -- $(grep -Frl 'remove from airootfs' /etc/pacman.d/hooks/)"

@@ -1,0 +1,5 @@
+swaybg -c '#4C97FF' >/dev/null 2>&1 &
+waybar >/dev/null 2>&1 &
+nm-applet --indicator >/dev/null 2>&1 &
+(sleep 3; wpctl set-mute @DEFAULT_AUDIO_SINK@ 0; wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.8) &
+turbowarp-desktop >/dev/null 2>&1 &

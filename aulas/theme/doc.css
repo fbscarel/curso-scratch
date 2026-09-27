@@ -1,0 +1,279 @@
+/* doc.css — folhas de atividades (A4 retrato)
+   Curso de Scratch — Santana, BA
+   Print-friendly: nada de fundos escuros, tudo legível em impressora P&B. */
+
+@page {
+  size: A4 portrait;
+  margin: 15mm;
+}
+
+:root {
+  --ink: #1b1f23;
+  --muted: #5b6672;
+  --rule: #c9d2da;
+  --accent: #0b6bb5;      /* azul Scratch */
+  --accent-soft: #e8f2fa;
+  --teacher: #b45309;     /* âmbar escuro */
+  --teacher-soft: #fdf3e3;
+  --green: #2f7d32;
+  --green-soft: #eaf5ea;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  /* A4 menos as margens de 15mm */
+  width: 180mm;
+  background: #fff;
+}
+
+body {
+  margin: 0;
+  background: #fff;
+  font-family: "Noto Sans", "DejaVu Sans", "Noto Color Emoji", sans-serif;
+  font-size: 11.5pt;
+  line-height: 1.5;
+  color: var(--ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 700;
+  line-height: 1.2;
+  break-after: avoid;
+  margin: 0 0 3mm 0;
+}
+h1 {
+  font-size: 21pt;
+  color: var(--accent);
+  border-bottom: 1.2mm solid var(--accent);
+  padding-bottom: 2mm;
+  margin-bottom: 5mm;
+}
+h2 { font-size: 15.5pt; margin-top: 7mm; }
+h3 { font-size: 13pt; margin-top: 5mm; }
+h4 { font-size: 11.5pt; margin-top: 4mm; }
+
+p { margin: 0 0 3mm 0; }
+p + p { margin-top: 0; }
+
+ul, ol { margin: 0 0 3mm 0; padding-left: 7mm; }
+li { margin-bottom: 1.2mm; }
+li > ul, li > ol { margin-top: 1.2mm; }
+
+a { color: var(--accent); text-decoration: none; }
+
+hr {
+  border: 0;
+  border-top: 0.4mm solid var(--rule);
+  margin: 5mm 0;
+}
+
+strong { font-weight: 700; }
+em { font-style: italic; }
+
+code {
+  font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace;
+  font-size: 0.9em;
+  background: #f2f4f6;
+  border: 0.3mm solid var(--rule);
+  border-radius: 1mm;
+  padding: 0 1mm;
+}
+
+pre {
+  font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace;
+  font-size: 9.5pt;
+  line-height: 1.35;
+  background: #f5f7f9;
+  border: 0.4mm solid var(--rule);
+  border-radius: 2mm;
+  padding: 3mm 3.5mm;
+  margin: 3mm 0;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  break-inside: avoid;
+}
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 1em;
+}
+
+/* ---------- imagens ---------- */
+
+img, svg { max-width: 100%; }
+
+img.full {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 3mm 0;
+}
+
+/* SVG desenhado dentro do markdown (grade de coordenadas, por exemplo) */
+figure { margin: 4mm 0; text-align: center; }
+figure svg { width: 100%; height: auto; }
+figcaption { font-size: 9.5pt; color: var(--muted); margin-top: 1.5mm; }
+
+/* ---------- tabelas ---------- */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 3mm 0 5mm 0;
+  font-size: 10.5pt;
+  break-inside: avoid;
+}
+th, td {
+  border: 0.3mm solid var(--rule);
+  padding: 1.8mm 2.2mm;
+  text-align: left;
+  vertical-align: top;
+}
+thead th {
+  background: var(--accent-soft);
+  color: #08405f;
+  font-weight: 700;
+}
+tbody tr:nth-child(even) td { background: #f7f9fb; }
+
+/* ---------- blocos de Scratch ---------- */
+
+pre.blocks {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 4mm 0;
+  white-space: normal;
+  overflow-wrap: normal;
+  text-align: left;
+}
+pre.blocks code { background: none; border: 0; }
+.scratchblocks svg { max-width: 100%; height: auto; }
+.scratchblocks { text-align: left; }
+
+/* ---------- classes de layout ---------- */
+
+/* Caixa com borda: avisos, instruções, resumos. */
+.box {
+  border: 0.5mm solid var(--accent);
+  border-radius: 2.5mm;
+  background: var(--accent-soft);
+  padding: 3.5mm 4mm;
+  margin: 4mm 0;
+  break-inside: avoid;
+}
+.box > :first-child { margin-top: 0; }
+.box > :last-child { margin-bottom: 0; }
+.box h2, .box h3 { margin-top: 0; }
+
+/* Recado para o professor. */
+.teacher {
+  border: 0.5mm dashed var(--teacher);
+  border-left: 2mm solid var(--teacher);
+  border-radius: 2.5mm;
+  background: var(--teacher-soft);
+  padding: 3.5mm 4mm;
+  margin: 4mm 0;
+  break-inside: avoid;
+  font-size: 10.5pt;
+}
+.teacher::before {
+  content: "Para o professor";
+  display: block;
+  font-weight: 700;
+  font-size: 9.5pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--teacher);
+  margin-bottom: 1.5mm;
+}
+.teacher > :first-child { margin-top: 0; }
+.teacher > :last-child { margin-bottom: 0; }
+
+/* Duas colunas. O conteúdo flui da esquerda para a direita. */
+.cols {
+  column-count: 2;
+  column-gap: 8mm;
+  column-rule: 0.3mm solid var(--rule);
+  margin: 3mm 0;
+}
+.cols > * { break-inside: avoid; }
+.cols > :first-child { margin-top: 0; }
+
+/* Linhas pautadas para escrever à mão.
+   Uso: <div class="write-lines" style="--n:4"></div>  (4 linhas) */
+.write-lines {
+  --n: 4;
+  --lh: 9mm;
+  height: calc(var(--n) * var(--lh));
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--lh) - 0.4mm),
+    var(--rule) calc(var(--lh) - 0.4mm),
+    var(--rule) var(--lh)
+  );
+  border: 0.4mm solid var(--rule);
+  border-radius: 1.5mm;
+  margin: 3mm 0;
+  break-inside: avoid;
+}
+
+/* Espaço em branco com borda para desenhar.
+   Uso: <div class="draw-box" style="--h:60mm"></div> */
+.draw-box {
+  --h: 45mm;
+  height: var(--h);
+  border: 0.5mm dashed #7f8c99;
+  border-radius: 2.5mm;
+  background: #fbfcfd;
+  margin: 3mm 0;
+  break-inside: avoid;
+}
+
+/* Quebra de página forçada. */
+.pagebreak { break-after: page; height: 0; margin: 0; }
+
+/* Não quebrar este bloco entre duas páginas. */
+.keep { break-inside: avoid; }
+
+/* Tamanhos e alinhamento. */
+.small { font-size: 0.85em; }
+.big { font-size: 1.3em; }
+.center { text-align: center; }
+.muted { color: var(--muted); }
+
+/* ---- Worksheet helpers ---- */
+/* Fill-in blank: <span class="blank" style="--w:40mm"></span> */
+.blank {
+  display: inline-block;
+  min-width: var(--w, 40mm);
+  border-bottom: 1.5px solid #333;
+  height: 1.1em;
+  vertical-align: baseline;
+}
+/* Matching exercise: name ● ... ● description, with room to draw lines */
+table.match { border: none; width: 100%; border-collapse: separate; border-spacing: 0 2.2mm; }
+table.match td { border: none; background: none; padding: 1mm 1.5mm; vertical-align: middle; }
+table.match tr:nth-child(even) td { background: none; }
+table.match td.dot { width: 4mm; font-size: 1.3em; text-align: center; }
+table.match td.gap { width: 30mm; }
+table.match td:first-child { text-align: right; white-space: nowrap; }
+/* Self-assessment faces */
+.faces { font-size: 2em; text-align: center; letter-spacing: 3mm; }
+span.faces { font-size: 1.6em; }
+
+.compact td, .compact th { padding: 0.7mm 2mm; }
+.tight p { margin: 1.4mm 0; }
+.tight h2 { margin-top: 4mm; }
+
+/* Cartões de desafio (aulaN-desafios): caixas mais compactas dentro de .cols */
+.cards .box { margin: 0 0 3mm 0; padding: 2.5mm 3.5mm; }
+.cards h3 { margin-bottom: 2mm; }
+.cards p { margin-bottom: 2mm; }
+.cards pre.blocks { margin: 2mm 0; }

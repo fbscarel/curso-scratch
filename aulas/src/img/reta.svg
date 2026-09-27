@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 70" width="620" height="70" font-family="Noto Sans, DejaVu Sans, sans-serif">
+<line x1="15" y1="30" x2="605" y2="30" stroke="#222" stroke-width="2"/>
+<line x1="30" y1="22" x2="30" y2="38" stroke="#222" stroke-width="2"/>
+<text x="30" y="60" font-size="17" text-anchor="middle" fill="#c0392b" font-weight="bold">-5</text>
+<line x1="86" y1="22" x2="86" y2="38" stroke="#222" stroke-width="2"/>
+<text x="86" y="60" font-size="17" text-anchor="middle" fill="#c0392b" font-weight="bold">-4</text>
+<line x1="142" y1="22" x2="142" y2="38" stroke="#222" stroke-width="2"/>
+<text x="142" y="60" font-size="17" text-anchor="middle" fill="#c0392b" font-weight="bold">-3</text>
+<line x1="198" y1="22" x2="198" y2="38" stroke="#222" stroke-width="2"/>
+<text x="198" y="60" font-size="17" text-anchor="middle" fill="#c0392b" font-weight="bold">-2</text>
+<line x1="254" y1="22" x2="254" y2="38" stroke="#222" stroke-width="2"/>
+<text x="254" y="60" font-size="17" text-anchor="middle" fill="#c0392b" font-weight="bold">-1</text>
+<line x1="310" y1="22" x2="310" y2="38" stroke="#222" stroke-width="2"/>
+<text x="310" y="60" font-size="17" text-anchor="middle" fill="#222" font-weight="bold">0</text>
+<line x1="366" y1="22" x2="366" y2="38" stroke="#222" stroke-width="2"/>
+<text x="366" y="60" font-size="17" text-anchor="middle" fill="#1f5fbf" font-weight="bold">1</text>
+<line x1="422" y1="22" x2="422" y2="38" stroke="#222" stroke-width="2"/>
+<text x="422" y="60" font-size="17" text-anchor="middle" fill="#1f5fbf" font-weight="bold">2</text>
+<line x1="478" y1="22" x2="478" y2="38" stroke="#222" stroke-width="2"/>
+<text x="478" y="60" font-size="17" text-anchor="middle" fill="#1f5fbf" font-weight="bold">3</text>
+<line x1="534" y1="22" x2="534" y2="38" stroke="#222" stroke-width="2"/>
+<text x="534" y="60" font-size="17" text-anchor="middle" fill="#1f5fbf" font-weight="bold">4</text>
+<line x1="590" y1="22" x2="590" y2="38" stroke="#222" stroke-width="2"/>
+<text x="590" y="60" font-size="17" text-anchor="middle" fill="#1f5fbf" font-weight="bold">5</text>
+</svg>

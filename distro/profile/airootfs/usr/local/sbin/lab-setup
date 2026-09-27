@@ -1,0 +1,30 @@
+#!/bin/sh
+# Runs once, chrooted, after the ISO's package transaction (zz-lab-setup.hook).
+set -eu
+
+locale-gen
+
+# Student: passwordless, auto-logged-in on tty1, no admin rights.
+id aluno >/dev/null 2>&1 || useradd -m -s /bin/bash aluno
+passwd -d aluno
+
+# Teacher (sudo via wheel) and root: password hashes staged by `just build`
+# (scripts/stage-secrets.sh); an account without a hash stays locked.
+id professor >/dev/null 2>&1 || useradd -m -G wheel -s /bin/bash professor
+for u in professor root; do
+    if [ -s "/root/$u.hash" ]; then
+        usermod -p "$(cat "/root/$u.hash")" "$u"
+    else
+        passwd -l "$u"
+    fi
+    rm -f "/root/$u.hash"
+done
+
+# Saved Wi-Fi networks: NetworkManager ignores keyfiles not owned by root with mode 600.
+if [ -d /etc/NetworkManager/system-connections ]; then
+    chown -R root:root /etc/NetworkManager/system-connections
+    chmod 700 /etc/NetworkManager/system-connections
+    find /etc/NetworkManager/system-connections -type f -exec chmod 600 {} +
+fi
+
+systemctl enable NetworkManager.service systemd-timesyncd.service

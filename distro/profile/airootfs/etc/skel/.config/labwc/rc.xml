@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <theme>
+    <name>Adwaita-Labwc</name>
+    <cornerRadius>8</cornerRadius>
+    <font place="ActiveWindow"><name>Roboto</name><size>11</size><weight>bold</weight></font>
+    <font place="InactiveWindow"><name>Roboto</name><size>11</size></font>
+    <font place="MenuItem"><name>Roboto</name><size>11</size></font>
+  </theme>
+  <desktops number="1"/>
+  <keyboard>
+    <default/>
+    <keybind key="C-S-t"><action name="Execute" command="foot"/></keybind>
+  </keyboard>
+</labwc_config>

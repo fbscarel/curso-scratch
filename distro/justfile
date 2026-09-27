@@ -1,0 +1,83 @@
+# ScratchLab — live Linux image for the Scratch lab.
+# Build host: Arch/CachyOS with archiso installed; mkarchiso needs sudo.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Firefox add-ons bundled into the image: AMO slug=extension id
+addons := "ublock-origin=uBlock0@raymondhill.net sponsorblock=sponsorBlocker@ajay.app"
+
+default:
+    @just --list
+
+# Build pkgbuilds/* into the local repo (repo/lab.db) consumed by the profile.
+repo:
+    rm -rf repo && mkdir -p repo pkgs/src
+    for d in pkgbuilds/*/; do \
+      (cd "$d" && BUILDDIR="{{justfile_directory()}}/pkgs" SRCDEST="{{justfile_directory()}}/pkgs/src" \
+        PKGDEST="{{justfile_directory()}}/repo" makepkg -Cf --noconfirm --nodeps); \
+    done
+    repo-add -q repo/lab.db.tar.gz repo/*.pkg.tar.zst
+
+# Download the latest AMO builds of the bundled Firefox add-ons.
+addons:
+    mkdir -p profile/airootfs/usr/share/scratchlab/extensions
+    for a in {{addons}}; do \
+      curl -fsSL -o "profile/airootfs/usr/share/scratchlab/extensions/${a#*=}.xpi" \
+        "https://addons.mozilla.org/firefox/downloads/latest/${a%%=*}/latest.xpi"; \
+    done
+
+# Firefox policies + the local web filter (filter/, not published). NO_FILTER=1 skips the filter.
+filter:
+    python3 scripts/stage-filter.py
+
+# Seed the student's Firefox profile (suppresses SponsorBlock's welcome tab).
+firefox-profile:
+    python3 scripts/seed-firefox-profile.py
+
+# Copy the class practice projects (../aulas/projetos/*.sb3) into the student's ~/Aulas.
+aulas_dir := justfile_directory() / ".." / "aulas" / "projetos"
+aulas:
+    rm -rf profile/airootfs/etc/skel/Aulas && mkdir -p profile/airootfs/etc/skel/Aulas
+    cp -v "{{aulas_dir}}"/*.sb3 profile/airootfs/etc/skel/Aulas/
+
+# Build the ISO into out/. Passwords: $PROF_PASS / $ROOT_PASS or prompted (twice).
+# Wi-Fi networks: secrets/wifi.txt (gitignored), "SSID<TAB>password" per line.
+build: repo addons filter firefox-profile aulas
+    scripts/stage-secrets.sh
+    trap 'rm -rf profile/airootfs/root/*.hash profile/airootfs/etc/NetworkManager/system-connections' EXIT; \
+      sed "s|@REPO@|{{justfile_directory()}}/repo|" profile/pacman.conf.in > profile/pacman.conf; \
+      sudo rm -rf work; \
+      sudo mkarchiso -v -r -w work -o out profile
+    ls -lh out/
+
+# Boot the newest ISO in QEMU (UEFI). Extra args go to qemu, e.g. `just vm -m 2G`.
+vm *args:
+    qemu-system-x86_64 -enable-kvm -cpu host -smp 2 -m 3G \
+      -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd \
+      -drive if=pflash,format=raw,snapshot=on,file=/usr/share/edk2/x64/OVMF_VARS.4m.fd \
+      -cdrom "$(ls -t out/*.iso | head -n1)" -vga virtio -audio pa,model=hda \
+      -nic user,model=virtio-net-pci {{args}}
+
+# Copy the newest ISO onto a mounted Ventoy stick, e.g. `just ventoy /run/media/$USER/Ventoy`.
+ventoy mnt:
+    rm -f "{{mnt}}"/scratchlab-*.iso
+    cp -v "$(ls -t out/*.iso | head -n1)" "{{mnt}}/"
+    sync
+
+# Write the newest ISO raw onto a USB stick (ERASES it), e.g. `just flash /dev/sdc`.
+# The archiso image is hybrid: the stick boots directly, no Ventoy needed.
+flash dev:
+    [ "$(lsblk -dno TYPE {{dev}})" = disk ] || { echo "{{dev}}: not a whole disk"; exit 1; }
+    [ "$(lsblk -dno TRAN {{dev}})" = usb ] || { echo "{{dev}}: not a USB device"; exit 1; }
+    ! lsblk -no MOUNTPOINTS {{dev}} | grep -q . || { echo "{{dev}}: has mounted partitions"; exit 1; }
+    lsblk -o NAME,SIZE,MODEL,LABEL {{dev}}
+    read -rp "ERASE {{dev}} and write the ISO? [digite SIM] " ok; [ "$ok" = SIM ]
+    sudo dd if="$(ls -t out/*.iso | head -n1)" of={{dev}} bs=4M conv=fsync oflag=direct status=progress
+    sync
+
+# Flash several sticks in a row: plug, confirm device + size, write, verify, pull, repeat.
+flash-loop:
+    scripts/flash-loop.sh
+
+clean:
+    sudo rm -rf work out

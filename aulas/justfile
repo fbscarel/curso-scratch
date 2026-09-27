@@ -1,0 +1,41 @@
+# Curso de Scratch — Santana/BA
+# Gera as folhas de atividade e os slides em PDF.
+# Uso: just            (lista as receitas)
+#      just pdf        (todas as aulas)
+#      just demo       (as páginas de demonstração)
+#      just preview    (PNG da primeira página de cada PDF, para conferir)
+
+set shell := ["bash", "-uc"]
+
+# Lista as receitas disponíveis
+default:
+    @just --list
+
+# Renderiza todo src/*.md (que não começa com "_") em pdf/<nome>.pdf
+pdf:
+    python3 tools/render.py pdf
+
+# Confere se os PDFs em pdf/ correspondem aos arquivos de src/ (usado no CI)
+check:
+    python3 tools/render.py check
+
+# Renderiza as duas páginas de demonstração
+demo:
+    python3 tools/render.py demo
+
+# PNG (110 dpi, primeira página) de cada PDF em build/preview/
+preview:
+    @mkdir -p build/preview
+    @for f in pdf/*.pdf; do \
+        n=$(basename "$f" .pdf); \
+        magick -density 110 "$f[0]" -background white -alpha remove -alpha off -depth 8 "build/preview/$n.png"; \
+        echo "build/preview/$n.png"; \
+    done
+
+# Apaga tudo que foi gerado em build/ (os PDFs de pdf/ são mantidos)
+clean:
+    rm -rf build
+
+# Gera projetos/*.sb3 (baixa e confere os assets oficiais; valida a estrutura)
+sb3:
+    python3 tools/build_sb3.py

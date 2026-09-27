@@ -1,0 +1,17 @@
+* {
+  font-family: "Font Awesome 6 Free", Roboto, sans-serif;
+  font-size: 14px;
+  border: none;
+  border-radius: 0;
+}
+window#waybar { background: rgba(30, 34, 42, 0.92); color: #ffffff; }
+#custom-scratch, #custom-firefox, #taskbar button, #tray, #pulseaudio, #network, #clock {
+  padding: 0 12px;
+  margin: 4px 2px;
+  border-radius: 6px;
+  color: #ffffff;
+}
+#custom-scratch { background: #ff8c1a; }
+#custom-firefox { background: #4c97ff; }
+#custom-scratch:hover, #custom-firefox:hover, #taskbar button:hover { background: rgba(255, 255, 255, 0.2); }
+#taskbar button.active { background: rgba(255, 255, 255, 0.15); }

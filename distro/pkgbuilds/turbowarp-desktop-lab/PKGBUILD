@@ -1,0 +1,63 @@
+# ScratchLab build of TurboWarp Desktop, based on AUR turbowarp-desktop-bin.
+# Differences: the default project uses the Scratch Cat (2 costumes + "Miau"
+# sound, as in vanilla Scratch) and the launcher forces dark mode and allows
+# software WebGL on GPUs Chromium blocklists.
+
+pkgname=turbowarp-desktop-lab
+pkgver=1.16.0
+pkgrel=1
+_gui_commit=dae2a97a5bb0cd8a7513fafd60f9e7488f2a89a4
+pkgdesc="TurboWarp Desktop with the Scratch Cat default project (ScratchLab)"
+arch=("x86_64")
+url="https://desktop.turbowarp.org/"
+license=("GPL3")
+depends=("gtk3" "nss" "alsa-lib" "libnotify" "libcups" "libxss")
+makedepends=("nodejs" "npm")
+provides=("turbowarp-desktop")
+conflicts=("turbowarp-desktop")
+_cat="https://raw.githubusercontent.com/scratchfoundation/scratch-gui/$_gui_commit/src/lib/default-project"
+source=("TurboWarp-linux-x64-$pkgver.tar.gz::https://github.com/TurboWarp/desktop/releases/download/v$pkgver/TurboWarp-linux-x64-$pkgver.tar.gz"
+        "$_cat/bcf454acf82e4504149f7ffe07081dbc.svg"
+        "$_cat/0fb9be3e8397c983338cb71dc84d0b25.svg"
+        "$_cat/83c36d806dc92327b9e7049a565c6bff.wav"
+        "patch-default-project.js")
+noextract=("TurboWarp-linux-x64-$pkgver.tar.gz")
+sha256sums=('338b27ad09168e2933c67a12a68eccdaea010e81e320543bebf27234656857bb'
+            '0f561db6723a721bd54c7f303072846023bb5b39be0846fcf098ae4b93f7df98'
+            '6c438b5dd181e6ca0bfe74d36c1503e13ebce02681d3c384d68d923d6164573a'
+            '427afe9d62874d41401d01558d48bec98f26d675e4480b073835576ed1ff499d'
+            'SKIP')
+
+_asar() { npx --yes @electron/asar@4.3.0 "$@"; }
+
+prepare() {
+    rm -rf tw app
+    mkdir tw
+    bsdtar -xf "TurboWarp-linux-x64-$pkgver.tar.gz" -C tw --strip-components 1
+    _asar extract tw/resources/app.asar app
+    node patch-default-project.js app "$srcdir"
+    _asar pack app tw/resources/app.asar
+    rm -rf app
+}
+
+package() {
+    install -Dm755 /dev/null "$pkgdir/usr/bin/turbowarp-desktop"
+    cat > "$pkgdir/usr/bin/turbowarp-desktop" <<'EOF'
+#!/bin/sh
+export TW_DIST_ID=linux-scratchlab
+export TW_DISABLE_UPDATE_CHECKER=1
+exec /opt/turbowarp-desktop/turbowarp-desktop --force-dark-mode \
+    --enable-unsafe-swiftshader --ignore-gpu-blocklist "$@"
+EOF
+
+    install -Dm644 tw/linux-files/org.turbowarp.TurboWarp.desktop "$pkgdir/usr/share/applications/turbowarp-desktop.desktop"
+    sed -i -e '/^#/d' -e 's/^Exec=.*/Exec=turbowarp-desktop %U/' -e 's/^Icon=.*/Icon=turbowarp-desktop/' \
+        "$pkgdir/usr/share/applications/turbowarp-desktop.desktop"
+    install -Dm644 tw/linux-files/org.turbowarp.TurboWarp.mime.xml "$pkgdir/usr/share/mime/packages/turbowarp-desktop.xml"
+    sed -i 's/org\.turbowarp\.TurboWarp/turbowarp-desktop/' "$pkgdir/usr/share/mime/packages/turbowarp-desktop.xml"
+    install -Dm644 tw/resources/icon.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/turbowarp-desktop.png"
+
+    mkdir -p "$pkgdir/opt/turbowarp-desktop"
+    cp -r tw/* "$pkgdir/opt/turbowarp-desktop"
+    chmod 4755 "$pkgdir/opt/turbowarp-desktop/chrome-sandbox"
+}

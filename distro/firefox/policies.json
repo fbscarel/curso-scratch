@@ -1,0 +1,108 @@
+{
+  "policies": {
+    "ExtensionSettings": {
+      "*": {
+        "installation_mode": "blocked"
+      },
+      "uBlock0@raymondhill.net": {
+        "installation_mode": "force_installed",
+        "install_url": "file:///usr/share/scratchlab/extensions/uBlock0@raymondhill.net.xpi",
+        "updates_disabled": true
+      },
+      "sponsorBlocker@ajay.app": {
+        "installation_mode": "force_installed",
+        "install_url": "file:///usr/share/scratchlab/extensions/sponsorBlocker@ajay.app.xpi",
+        "updates_disabled": true
+      },
+      "langpack-pt-BR@firefox.mozilla.org": {
+        "installation_mode": "allowed"
+      }
+    },
+    "DisableDeveloperTools": true,
+    "BlockAboutConfig": true,
+    "BlockAboutProfiles": true,
+    "DisablePrivateBrowsing": true,
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "DisableFirefoxAccounts": true,
+    "DisableProfileImport": true,
+    "DontCheckDefaultBrowser": true,
+    "NoDefaultBookmarks": true,
+    "OverrideFirstRunPage": "",
+    "OverridePostUpdatePage": "",
+    "RequestedLocales": [
+      "pt-BR"
+    ],
+    "Homepage": {
+      "URL": "https://scratch.mit.edu/",
+      "Locked": true,
+      "StartPage": "homepage"
+    },
+    "NewTabPage": false,
+    "DisplayBookmarksToolbar": "always",
+    "Bookmarks": [
+      {
+        "Title": "Scratch",
+        "URL": "https://scratch.mit.edu/",
+        "Placement": "toolbar"
+      },
+      {
+        "Title": "Criar no Scratch",
+        "URL": "https://scratch.mit.edu/projects/editor/",
+        "Placement": "toolbar"
+      },
+      {
+        "Title": "TurboWarp",
+        "URL": "https://turbowarp.org/",
+        "Placement": "toolbar"
+      },
+      {
+        "Title": "Pesquisar (DuckDuckGo sem IA)",
+        "URL": "https://noai.duckduckgo.com/?kl=br-pt&kp=1",
+        "Placement": "toolbar"
+      },
+      {
+        "Title": "Wikipédia",
+        "URL": "https://pt.wikipedia.org/",
+        "Placement": "toolbar"
+      },
+      {
+        "Title": "Material do curso",
+        "URL": "https://fbscarel.github.io/curso-scratch/",
+        "Placement": "toolbar"
+      }
+    ],
+    "SearchEngines": {
+      "Add": [
+        {
+          "Name": "DuckDuckGo (sem IA)",
+          "URLTemplate": "https://noai.duckduckgo.com/?q={searchTerms}&kl=br-pt&kp=1",
+          "IconURL": "https://noai.duckduckgo.com/favicon.ico",
+          "Alias": "@ddg"
+        }
+      ],
+      "Default": "DuckDuckGo (sem IA)",
+      "Remove": [
+        "Google",
+        "Bing",
+        "DuckDuckGo",
+        "eBay",
+        "Amazon.com",
+        "Ecosia",
+        "Qwant",
+        "Perplexity",
+        "Mercado Livre",
+        "Startpage"
+      ],
+      "PreventInstalls": true
+    },
+    "SearchSuggestEnabled": false,
+    "AIControls": {
+      "Default": {
+        "Value": "blocked",
+        "Locked": true
+      }
+    }
+  }
+}

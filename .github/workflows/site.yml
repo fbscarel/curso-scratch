@@ -1,0 +1,60 @@
+name: Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "aulas/**"
+      - "site/**"
+      - ".github/workflows/site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar o poppler (miniaturas dos PDFs)
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
+      - name: Instalar as dependências do site
+        run: pip install -r site/requirements.txt
+
+      - name: Conferir se os PDFs estão em dia
+        run: python3 aulas/tools/render.py check
+
+      - name: Gerar os documentos do site
+        run: python3 site/gen.py
+
+      - name: Construir o site
+        run: mkdocs build --strict -f site/mkdocs.yml
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/build/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

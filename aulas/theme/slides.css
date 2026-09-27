@@ -1,0 +1,227 @@
+/* slides.css — apresentação 16:9 para projetor
+   Um <section class="slide"> por página. Alta legibilidade de longe. */
+
+@page {
+  size: 297mm 167.1mm;   /* 16:9 */
+  margin: 0;
+}
+
+:root {
+  --ink: #10151a;
+  --muted: #4a5764;
+  --rule: #c9d2da;
+  --accent: #0b6bb5;
+  --accent-soft: #e8f2fa;
+  --teacher: #b45309;
+  --teacher-soft: #fdf3e3;
+  --green: #2f7d32;
+  --green-soft: #eaf5ea;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; background: #fff; }
+
+body {
+  font-family: "Noto Sans", "DejaVu Sans", "Noto Color Emoji", sans-serif;
+  color: var(--ink);
+  background: #fff;
+  font-size: 32pt;
+  line-height: 1.3;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ---------- páginas ---------- */
+
+section.slide {
+  width: 297mm;
+  height: 166.6mm;
+  padding: 16mm 20mm;
+  break-after: page;
+  break-inside: avoid;
+  overflow: hidden;
+}
+section.slide:last-child { break-after: auto; }
+
+section.slide > :first-child { margin-top: 0; }
+section.slide > :last-child { margin-bottom: 0; }
+
+/* Slide de título: centralizado, letra grande. */
+section.slide.title-slide {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: var(--accent-soft);
+}
+section.slide.title-slide h1 {
+  border: 0;
+  font-size: 64pt;
+  color: var(--accent);
+  margin: 0 0 6mm 0;
+  padding: 0;
+}
+section.slide.title-slide h2 {
+  font-size: 38pt;
+  font-weight: 400;
+  color: var(--muted);
+  margin: 0;
+}
+section.slide.title-slide p { font-size: 24pt; }
+
+/* ---------- tipografia ---------- */
+
+h1, h2, h3, h4 { font-weight: 700; line-height: 1.15; margin: 0 0 5mm 0; }
+h1 { font-size: 50pt; color: var(--accent); }
+h2 { font-size: 38pt; }
+h3 { font-size: 25pt; }
+h4 { font-size: 21pt; }
+
+p { margin: 0 0 4mm 0; }
+
+ul, ol { margin: 0 0 4mm 0; padding-left: 12mm; }
+li { margin-bottom: 3mm; }
+li > ul, li > ol { margin-top: 3mm; }
+
+a { color: var(--accent); text-decoration: none; }
+strong { font-weight: 700; }
+
+code {
+  font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace;
+  font-size: 0.9em;
+  background: #f2f4f6;
+  border: 0.3mm solid var(--rule);
+  border-radius: 1.5mm;
+  padding: 0 2mm;
+}
+
+pre {
+  font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace;
+  font-size: 15pt;
+  background: #f5f7f9;
+  border: 0.4mm solid var(--rule);
+  border-radius: 3mm;
+  padding: 4mm 5mm;
+  margin: 4mm 0;
+  white-space: pre-wrap;
+}
+
+img, svg { max-width: 100%; }
+img.full { width: 100%; height: auto; display: block; margin: 4mm 0; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4mm 0;
+  font-size: 26pt;
+}
+th, td { border: 0.4mm solid var(--rule); padding: 2.5mm 3.5mm; text-align: left; }
+thead th { background: var(--accent-soft); color: #08405f; font-weight: 700; }
+
+/* ---------- blocos de Scratch ---------- */
+
+pre.blocks {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 5mm 0;
+  white-space: normal;
+  text-align: left;
+}
+pre.blocks code { background: none; border: 0; }
+.scratchblocks svg { max-width: 100%; height: auto; }
+.scratchblocks { text-align: left; }
+
+/* ---------- classes de layout ---------- */
+
+.box {
+  border: 0.6mm solid var(--accent);
+  border-radius: 3mm;
+  background: var(--accent-soft);
+  padding: 5mm 6mm;
+  margin: 5mm 0;
+}
+.box > :first-child { margin-top: 0; }
+.box > :last-child { margin-bottom: 0; }
+
+.teacher {
+  border: 0.6mm dashed var(--teacher);
+  border-left: 2.5mm solid var(--teacher);
+  border-radius: 3mm;
+  background: var(--teacher-soft);
+  padding: 5mm 6mm;
+  margin: 5mm 0;
+  font-size: 19pt;
+}
+.teacher::before {
+  content: "Para o professor";
+  display: block;
+  font-weight: 700;
+  font-size: 15pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--teacher);
+  margin-bottom: 2mm;
+}
+.teacher > :first-child { margin-top: 0; }
+.teacher > :last-child { margin-bottom: 0; }
+
+.cols {
+  column-count: 2;
+  column-gap: 12mm;
+  column-rule: 0.4mm solid var(--rule);
+  margin: 4mm 0;
+}
+.cols > * { break-inside: avoid; }
+
+.write-lines {
+  --n: 4;
+  --lh: 14mm;
+  height: calc(var(--n) * var(--lh));
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--lh) - 0.5mm),
+    var(--rule) calc(var(--lh) - 0.5mm),
+    var(--rule) var(--lh)
+  );
+  border: 0.5mm solid var(--rule);
+  border-radius: 2mm;
+  margin: 4mm 0;
+}
+
+.draw-box {
+  --h: 70mm;
+  height: var(--h);
+  border: 0.6mm dashed #7f8c99;
+  border-radius: 3mm;
+  background: #fbfcfd;
+  margin: 4mm 0;
+}
+
+.pagebreak { break-after: page; height: 0; margin: 0; }
+.keep { break-inside: avoid; }
+
+.small { font-size: 0.8em; }
+.big { font-size: 1.35em; }
+.center { text-align: center; }
+.muted { color: var(--muted); }
+
+/* Side-by-side figure + legend */
+.split { display: flex; gap: 8mm; align-items: flex-start; }
+.split > :first-child { flex: 2.3; }
+.split > :last-child { flex: 1; }
+
+.split.even > :first-child { flex: 1.2; }
+.flow { display: flex; align-items: center; justify-content: center; gap: 5mm; margin-top: 10mm; }
+.flow .step { border: 0.8mm solid var(--accent); border-radius: 4mm; background: var(--accent-soft);
+              padding: 6mm 5mm; text-align: center; font-weight: 700; flex: 1; font-size: 26pt; }
+.flow .step span { display: block; font-size: 1.4em; margin-top: 3mm; font-weight: 400; }
+.flow .arrow { font-size: 1.6em; }
+table.small { font-size: 21pt; }
+.small-table table { font-size: 25pt; }
+.small-table td, .small-table th { padding: 1.6mm 3mm; }
+.split img.full { max-height: 118mm; width: auto; max-width: 100%; margin: 0 auto; }

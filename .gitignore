@@ -1,0 +1,28 @@
+# Heavy artifacts: never commit (rebuild them; see distro/README.md)
+*.iso
+*.img
+*.qcow2
+*.pkg.tar.zst
+*.pkg.tar.zst.sig
+*.xpi
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.avi
+*.mp3
+*.wav.tmp
+
+# Local caches / editor noise
+.cache/
+__pycache__/
+*.pyc
+*~
+.DS_Store
+
+# Local-only, never published (internal notes, references, web-filter configuration)
+/HANDOFF.md
+/.omp/
+/docs/
+/referencias/
+/distro/filter/

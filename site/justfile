@@ -1,0 +1,23 @@
+# Curso de Scratch — site (MkDocs Material)
+# Uso: just        (lista as receitas)
+#      just build  (gera build/docs e o site em build/_site)
+#      just serve  (gera e abre o servidor local)
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+default:
+    @just --list
+
+# Cria o .venv (se faltar) e instala as dependências
+venv:
+    @test -d .venv || python3 -m venv .venv
+    .venv/bin/pip install -q -r requirements.txt
+
+# Gera os documentos a partir de aulas.yml e constrói o site
+build: venv
+    .venv/bin/python gen.py
+    .venv/bin/mkdocs build --strict
+
+# Servidor local (http://127.0.0.1:8000)
+serve: build
+    .venv/bin/mkdocs serve

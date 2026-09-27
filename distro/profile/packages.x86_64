@@ -1,0 +1,53 @@
+# Boot
+base
+linux
+mkinitcpio
+mkinitcpio-archiso
+syslinux
+pv
+plymouth
+plymouth-theme-arch-logo
+intel-ucode
+amd-ucode
+linux-firmware-amd
+linux-firmware-amdgpu
+linux-firmware-broadcom
+linux-firmware-intel
+linux-firmware-radeon
+linux-firmware-realtek
+
+# System
+sudo
+polkit
+nano
+foot
+networkmanager
+wireless-regdb
+dnsmasq
+network-manager-applet
+
+# Graphics / desktop
+mesa
+labwc
+waybar
+swaybg
+xorg-xwayland
+adwaita-cursors
+xdg-utils
+ttf-dejavu
+ttf-liberation
+ttf-roboto
+otf-font-awesome
+
+# Sound
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+alsa-utils
+pavucontrol
+
+# Applications
+firefox
+firefox-i18n-pt-br
+turbowarp-desktop-lab

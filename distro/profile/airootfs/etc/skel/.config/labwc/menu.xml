@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu>
+  <menu id="root-menu" label="">
+    <item label="Scratch (TurboWarp)"><action name="Execute" command="turbowarp-desktop"/></item>
+    <item label="Navegador (Firefox)"><action name="Execute" command="firefox"/></item>
+    <item label="Volume do som"><action name="Execute" command="pavucontrol"/></item>
+    <separator/>
+    <item label="Reiniciar o computador"><action name="Execute" command="systemctl reboot"/></item>
+    <item label="Desligar o computador"><action name="Execute" command="systemctl poweroff"/></item>
+  </menu>
+</openbox_menu>

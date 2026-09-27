@@ -1,0 +1,51 @@
+{
+  "layer": "top",
+  "position": "bottom",
+  "height": 40,
+  "modules-left": [
+    "custom/scratch",
+    "custom/firefox",
+    "wlr/taskbar"
+  ],
+  "modules-right": [
+    "tray",
+    "pulseaudio",
+    "clock"
+  ],
+  "custom/scratch": {
+    "format": "  Scratch",
+    "on-click": "turbowarp-desktop",
+    "tooltip": false
+  },
+  "custom/firefox": {
+    "format": "  Navegador",
+    "on-click": "firefox",
+    "tooltip": false
+  },
+  "wlr/taskbar": {
+    "format": "{icon} {title:.30}",
+    "icon-size": 20,
+    "on-click": "activate",
+    "on-click-middle": "close"
+  },
+  "tray": {
+    "spacing": 8
+  },
+  "pulseaudio": {
+    "format": "{icon}  {volume}%",
+    "format-muted": "  mudo",
+    "format-icons": {
+      "default": [
+        "",
+        "",
+        ""
+      ]
+    },
+    "on-click": "pavucontrol",
+    "scroll-step": 5
+  },
+  "clock": {
+    "format": "{:%H:%M}",
+    "tooltip-format": "{:%A, %d de %B}"
+  }
+}
