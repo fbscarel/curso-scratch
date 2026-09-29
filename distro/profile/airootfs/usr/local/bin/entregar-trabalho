@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""Entregar trabalho: envia um projeto do Scratch (.sb3) para a pasta do professor.
+
+Janela (GTK 4) para as crianças: escolher o projeto salvo, escrever o nome e o
+número da aula, clicar em Enviar. O destino é o web app do Google Apps Script em
+entrega/Code.gs; a URL vem de /etc/scratchlab/entrega-url, gravada no build a
+partir de distro/secrets/entrega-url.txt.
+
+Sem janela (para testar a implantação):
+    entregar-trabalho --url URL --nome Teste --aula 999 projeto.sb3
+"""
+import argparse
+import base64
+import datetime
+import filecmp
+import json
+import os
+import sys
+import threading
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+URL_FILE = Path("/etc/scratchlab/entrega-url")
+SKEL_AULAS = Path("/etc/skel/Aulas")
+LAST = Path.home() / ".cache/entregar-trabalho.json"
+MAX_BYTES = 20 * 1024 * 1024
+MAX_DEPTH = 4
+TIMEOUT = 120
+
+
+class Falha(Exception):
+    """Erro com mensagem para a criança."""
+
+
+def enviar(url, nome, aula, caminho):
+    """Envia o arquivo; devolve a resposta do servidor (dict com ok=True) ou levanta Falha."""
+    dados = Path(caminho).read_bytes()
+    if len(dados) > MAX_BYTES:
+        raise Falha("O arquivo é grande demais (máximo 20 MB).")
+    corpo = json.dumps({
+        "nome": nome,
+        "aula": aula,
+        "arquivo": Path(caminho).name,
+        "dados": base64.b64encode(dados).decode("ascii"),
+    }).encode("utf-8")
+    pedido = urllib.request.Request(url, data=corpo, method="POST",
+                                    headers={"Content-Type": "application/json"})
+    # O Apps Script responde 302 para outra URL; o urllib segue com GET, como deve ser.
+    try:
+        with urllib.request.urlopen(pedido, timeout=TIMEOUT) as r:
+            texto = r.read().decode("utf-8")
+    except (urllib.error.URLError, TimeoutError, OSError) as erro:
+        raise Falha("Não deu para falar com o servidor. A internet está funcionando?") from erro
+    try:
+        resposta = json.loads(texto)
+    except ValueError as erro:
+        raise Falha("O servidor respondeu algo estranho. Chame o professor.") from erro
+    if not resposta.get("ok"):
+        raise Falha(resposta.get("erro") or "O servidor recusou o envio.")
+    return resposta
+
+
+def eh_copia_intacta(caminho):
+    """True para as cópias dos projetos da pasta Aulas que ninguém mudou."""
+    original = SKEL_AULAS / caminho.name
+    return original.is_file() and filecmp.cmp(original, caminho, shallow=False)
+
+
+def projetos():
+    """Arquivos .sb3 da pasta pessoal, do mais novo para o mais velho."""
+    casa = Path.home()
+    achados = []
+    for raiz, pastas, arquivos in os.walk(casa):
+        fundo = len(Path(raiz).relative_to(casa).parts)
+        pastas[:] = [] if fundo >= MAX_DEPTH else [p for p in pastas if not p.startswith(".")]
+        for nome in arquivos:
+            caminho = Path(raiz) / nome
+            if nome.lower().endswith(".sb3") and caminho.is_file() and not eh_copia_intacta(caminho):
+                achados.append(caminho)
+    return sorted(achados, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def ler_url():
+    try:
+        return URL_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def ultimo():
+    try:
+        return json.loads(LAST.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def lembrar(nome, aula):
+    LAST.parent.mkdir(parents=True, exist_ok=True)
+    LAST.write_text(json.dumps({"nome": nome, "aula": aula}), encoding="utf-8")
+
+
+def janela():
+    import gi
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import GLib, Gtk
+
+    url = ler_url()
+
+    class Entrega(Gtk.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app, title="Entregar trabalho")
+            self.set_default_size(560, 520)
+            self.arquivos = []
+
+            caixa = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+            for lado in ("top", "bottom", "start", "end"):
+                getattr(caixa, f"set_margin_{lado}")(20)
+            self.set_child(caixa)
+
+            caixa.append(self.titulo("1. Escolha o projeto"))
+            self.lista = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
+            self.lista.connect("row-selected", lambda *_: self.conferir())
+            rolagem = Gtk.ScrolledWindow(vexpand=True, min_content_height=160)
+            rolagem.set_child(self.lista)
+            caixa.append(rolagem)
+            self.vazio = Gtk.Label(wrap=True, xalign=0)
+            self.vazio.set_markup(
+                "Nenhum projeto salvo ainda. No Scratch, use <b>Arquivo → Salvar como...</b> "
+                "e depois clique em <b>Procurar de novo</b>.")
+            caixa.append(self.vazio)
+            atualizar = Gtk.Button(label="Procurar de novo", halign=Gtk.Align.START)
+            atualizar.connect("clicked", lambda *_: self.carregar())
+            caixa.append(atualizar)
+
+            anterior = ultimo()
+            caixa.append(self.titulo("2. Seu nome"))
+            self.nome = Gtk.Entry(text=anterior.get("nome", ""), max_length=40)
+            self.nome.connect("changed", lambda *_: self.conferir())
+            caixa.append(self.nome)
+
+            caixa.append(self.titulo("3. Número da aula"))
+            self.aula = Gtk.Entry(text=str(anterior.get("aula", "")), max_length=3,
+                                  input_purpose=Gtk.InputPurpose.DIGITS, width_chars=5,
+                                  halign=Gtk.Align.START)
+            self.aula.connect("changed", self.so_numeros)
+            caixa.append(self.aula)
+
+            self.botao = Gtk.Button(label="Enviar", halign=Gtk.Align.END)
+            self.botao.add_css_class("suggested-action")
+            self.botao.connect("clicked", lambda *_: self.enviar())
+            self.girando = Gtk.Spinner()
+            self.aviso = Gtk.Label(wrap=True, xalign=0, hexpand=True, selectable=True)
+            rodape = Gtk.Box(spacing=12)
+            rodape.append(self.girando)
+            rodape.append(self.aviso)
+            rodape.append(self.botao)
+            caixa.append(rodape)
+
+            self.carregar()
+            if not url:
+                self.mostrar("O envio não está configurado neste computador. Chame o professor.",
+                             erro=True)
+
+        @staticmethod
+        def titulo(texto):
+            rotulo = Gtk.Label(xalign=0)
+            rotulo.set_markup(f"<b>{GLib.markup_escape_text(texto)}</b>")
+            return rotulo
+
+        def so_numeros(self, entrada):
+            texto = entrada.get_text()
+            limpo = "".join(c for c in texto if c.isdigit())
+            if limpo != texto:
+                entrada.set_text(limpo)
+                entrada.set_position(-1)
+            self.conferir()
+
+        def carregar(self):
+            self.lista.remove_all()
+            self.arquivos = projetos()
+            hoje = datetime.date.today()
+            for caminho in self.arquivos:
+                quando = datetime.datetime.fromtimestamp(caminho.stat().st_mtime)
+                hora = quando.strftime("%H:%M" if quando.date() == hoje else "%d/%m %H:%M")
+                rotulo = Gtk.Label(xalign=0, margin_top=6, margin_bottom=6,
+                                   margin_start=8, margin_end=8)
+                rotulo.set_markup(f"<b>{GLib.markup_escape_text(caminho.name)}</b>"
+                                  f"   <small>salvo às {hora}</small>")
+                self.lista.append(rotulo)
+            self.vazio.set_visible(not self.arquivos)
+            if self.arquivos:
+                self.lista.select_row(self.lista.get_row_at_index(0))
+            self.conferir()
+
+        def pronto(self):
+            linha = self.lista.get_selected_row()
+            texto = self.aula.get_text()
+            return (bool(url) and linha is not None and bool(self.nome.get_text().strip())
+                    and texto.isdigit() and 1 <= int(texto) <= 999)
+
+        def conferir(self):
+            self.botao.set_sensitive(self.pronto() and not self.girando.get_spinning())
+
+        def mostrar(self, texto, erro=False):
+            self.aviso.set_markup(
+                f"<span foreground='{'#c01c28' if erro else '#26a269'}'>"
+                f"{GLib.markup_escape_text(texto)}</span>")
+
+        def enviar(self):
+            if not self.pronto():
+                return
+            caminho = self.arquivos[self.lista.get_selected_row().get_index()]
+            nome, aula = self.nome.get_text().strip(), int(self.aula.get_text())
+            lembrar(nome, aula)
+            self.girando.start()
+            self.mostrar("Enviando…")
+            self.conferir()
+
+            def trabalho():
+                try:
+                    r = enviar(url, nome, aula, caminho)
+                    texto, erro = f"Enviado! {r.get('pasta', '')} · {caminho.name}", False
+                except Falha as falha:
+                    texto, erro = f"Não foi enviado: {falha}", True
+                except Exception as falha:  # noqa: BLE001 - mostrar qualquer erro à criança
+                    texto, erro = f"Não foi enviado: {falha}", True
+                GLib.idle_add(self.terminou, texto, erro)
+
+            threading.Thread(target=trabalho, daemon=True).start()
+
+        def terminou(self, texto, erro):
+            self.girando.stop()
+            self.mostrar(texto, erro)
+            self.conferir()
+            return False
+
+    app = Gtk.Application(application_id="org.scratchlab.EntregarTrabalho")
+    app.connect("activate", lambda a: (a.get_active_window() or Entrega(a)).present())
+    return app.run([sys.argv[0]])
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Envia um projeto .sb3 para a pasta do professor.")
+    ap.add_argument("arquivo", nargs="?", help="sem janela: o .sb3 a enviar")
+    ap.add_argument("--url", help="URL do web app (padrão: /etc/scratchlab/entrega-url)")
+    ap.add_argument("--nome")
+    ap.add_argument("--aula", type=int)
+    args = ap.parse_args()
+    if args.arquivo is None:
+        return janela()
+    if not args.nome or args.aula is None:
+        ap.error("sem janela, --nome e --aula são obrigatórios")
+    url = args.url or ler_url()
+    if not url:
+        sys.exit(f"sem URL: use --url ou crie {URL_FILE}")
+    try:
+        resposta = enviar(url, args.nome, args.aula, args.arquivo)
+    except Falha as falha:
+        sys.exit(f"não enviado: {falha}")
+    print(f"enviado: {resposta['pasta']}/{resposta['arquivo']}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

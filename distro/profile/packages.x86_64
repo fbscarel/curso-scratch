@@ -51,3 +51,7 @@ pavucontrol
 firefox
 firefox-i18n-pt-br
 turbowarp-desktop-lab
+# "Entregar trabalho" (usr/local/bin/entregar-trabalho): Python + GTK 4
+python
+python-gobject
+gtk4

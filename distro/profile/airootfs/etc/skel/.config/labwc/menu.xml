@@ -3,6 +3,7 @@
   <menu id="root-menu" label="">
     <item label="Scratch (TurboWarp)"><action name="Execute" command="turbowarp-desktop"/></item>
     <item label="Navegador (Firefox)"><action name="Execute" command="firefox"/></item>
+    <item label="Entregar trabalho"><action name="Execute" command="entregar-trabalho"/></item>
     <item label="Volume do som"><action name="Execute" command="pavucontrol"/></item>
     <separator/>
     <item label="Reiniciar o computador"><action name="Execute" command="systemctl reboot"/></item>

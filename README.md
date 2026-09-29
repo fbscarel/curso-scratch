@@ -16,6 +16,7 @@ slides, roteiros e projetos para baixar, por aula.
 | `aulas/` | Os materiais das aulas: roteiros, fichas, desafios, slides e o bilhete aos pais, escritos em Markdown e convertidos para PDF; os projetos de treino em `.sb3`, gerados por `tools/build_sb3.py`; o guia de escrita das figuras de blocos está em `aulas/src/_BLOCKS.md`. |
 | `site/` | O site do curso, feito com MkDocs e publicado no GitHub Pages. |
 | `distro/` | **ScratchLab**: o sistema live em pendrive que roda nos computadores do laboratório. Como gerar e gravar: [`distro/README.md`](distro/README.md). |
+| `entrega/` | O programa (Google Apps Script) que recebe os trabalhos enviados pelo botão **Entregar trabalho** do laboratório e guarda na pasta do professor no Google Drive. Como colocar no ar: [`entrega/README.md`](entrega/README.md). |
 
 ## Como gerar os materiais
 

@@ -3,6 +3,7 @@
 # removed again by `just build` once mkarchiso finishes):
 #   - password hashes for `professor` and `root` (from $PROF_PASS / $ROOT_PASS or a prompt)
 #   - NetworkManager Wi-Fi connections from secrets/wifi.txt ("SSID<TAB>password" per line)
+#   - the "Entregar trabalho" upload URL from secrets/entrega-url.txt (see ../entrega/README.md)
 # `lab-setup` applies them inside the image.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -57,4 +58,18 @@ EOF
     done < secrets/wifi.txt
 else
     echo "Wi-Fi: secrets/wifi.txt missing — image will have no saved networks" >&2
+fi
+
+url_file=profile/airootfs/etc/scratchlab/entrega-url
+rm -f "$url_file"
+url=$(grep -v '^#' secrets/entrega-url.txt 2>/dev/null | tr -d '[:space:]' || true)
+if [[ "$url" == https://script.google.com/macros/s/*/exec ]]; then
+    mkdir -p "$(dirname "$url_file")"
+    printf '%s\n' "$url" > "$url_file"
+    echo "Entregar trabalho: URL configurada"
+elif [ -n "$url" ]; then
+    echo "secrets/entrega-url.txt: esperado https://script.google.com/macros/s/…/exec" >&2
+    exit 1
+else
+    echo "Entregar trabalho: secrets/entrega-url.txt missing — the button will say it is not configured" >&2
 fi
