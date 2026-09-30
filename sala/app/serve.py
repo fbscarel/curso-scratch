@@ -182,14 +182,14 @@ def stop_mdns(process: subprocess.Popen | None) -> None:
         process.wait()
 
 
-def announce_mdns(process: subprocess.Popen | None, name: str, port: int) -> None:
+def announce_mdns(process: subprocess.Popen | None, name: str, port: int, address: str) -> None:
     """Say where the board is announced, once the settle wait has passed.
 
     A child that gave up right away (daemon off, name taken) is reaped and the
     pt-BR hint is printed instead.
     """
     if process is not None and stays_up(process):
-        print(f"Também em: http://{name}.local:{port}")
+        print(f"Também em: http://{name}.local:{port} (anunciando {address})")
         return
     stop_mdns(process)
     print(mdns_hint(name))
@@ -203,15 +203,22 @@ def _exit_on_signal(signum: int, frame: object) -> None:
 def mdns_lifetime(start: Callable[[], subprocess.Popen | None]) -> Iterator[subprocess.Popen | None]:
     """Run the block with `start()`'s avahi child alive, stopping it on the way out.
 
-    The SIGTERM handler goes up before the child is even started and the process
-    is handed to the block, so Ctrl+C and a plain kill both reach the cleanup —
-    including a signal that lands during the settle wait — and never leave an
-    avahi-publish behind.
+    The SIGTERM handler goes up before the child is even started, and SIGTERM is
+    blocked until the child handle has been stored: a signal arriving in that
+    window stays pending instead of raising SystemExit with `process` still None
+    and letting avahi-publish outlive the server. It is delivered at the unblock
+    below — `process` is set by then, so the cleanup here still stops the child.
+    Ctrl+C and a plain kill both reach the cleanup too, including a signal that
+    lands during the settle wait.
     """
     previous = signal.signal(signal.SIGTERM, _exit_on_signal)
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
     process: subprocess.Popen | None = None
     try:
-        process = start()
+        try:
+            process = start()
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         yield process
     finally:
         signal.signal(signal.SIGTERM, previous)
@@ -287,7 +294,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     with mdns_lifetime(start_publisher) as publisher:
         if urls:
-            announce_mdns(publisher, name, port)
+            announce_mdns(publisher, name, port, board_address(urls[0]))
         waitress_serve(app, host="0.0.0.0", port=port, threads=THREADS)
     return 0
 

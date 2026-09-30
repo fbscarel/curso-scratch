@@ -299,3 +299,78 @@ def test_upload_refuses_a_strange_answer(desktop, monkeypatch, tmp_path: Path, p
         client.upload(write_project(tmp_path / "jogo.sb3"))
 
     assert str(failure.value) == desktop.STRANGE_MESSAGE
+
+
+def test_opening_the_classroom_brings_client_and_names_together(desktop, servidor, add_student):
+    ana = add_student("Ana Teste")
+    bruno = add_student("Bruno Teste")
+
+    client, session, students = desktop.open_classroom(servidor)
+
+    assert students == [{"id": ana, "name": "Ana Teste"}, {"id": bruno, "name": "Bruno Teste"}]
+    assert client.csrf == session["csrf"]  # the names came from the client that hands work in
+
+
+# --- the file on its way out -----------------------------------------------
+
+
+def test_multipart_body_frames_the_bytes_it_was_given(desktop, tmp_path: Path):
+    project = write_project(tmp_path / "meu-jogo.sb3")
+
+    body, content_type = desktop.multipart_body(project, b"conteudo", boundary="bbbbbbbb")
+
+    assert content_type == "multipart/form-data; boundary=bbbbbbbb"
+    assert body == (
+        b"--bbbbbbbb\r\n"
+        b'Content-Disposition: form-data; name="file"; filename="meu-jogo.sb3"\r\n'
+        b"Content-Type: application/octet-stream\r\n\r\n"
+        b"conteudo"
+        b"\r\n--bbbbbbbb--\r\n"
+    )
+
+
+def test_the_upload_body_keeps_the_bytes_read_before_the_file_changed(desktop, tmp_path: Path):
+    project = write_project(tmp_path / "meu-jogo.sb3", b"antes da troca")
+    body, _content_type = desktop.multipart_body(project, project.read_bytes(), boundary="bbbbbbbb")
+
+    project.write_bytes(b"depois, e bem maior do que o conteudo de antes")  # saved during the upload
+
+    assert body.endswith(b"antes da troca\r\n--bbbbbbbb--\r\n")
+    assert b"depois" not in body
+
+
+def test_a_retried_upload_sends_the_same_bytes_and_the_same_length(desktop, monkeypatch, tmp_path: Path):
+    project = write_project(tmp_path / "meu-jogo.sb3", b"conteudo do projeto")
+    client = desktop.Sala("http://127.0.0.1:1")
+    client.csrf = "token-vencido"
+    monkeypatch.setattr(client, "renew_session", lambda: None)
+    sent: list[tuple[bytes, dict]] = []
+
+    def capture(method, path, *, body=None, headers=None, timeout=None):
+        sent.append((body, headers))
+        if len(sent) == 1:  # the token the server refuses, so the write is retried
+            return 403, b'{"error": "sessao vencida", "code": "csrf"}'
+        return 200, b'{"lessonNumber": 3}'
+
+    monkeypatch.setattr(client, "_request", capture)
+
+    assert client.upload(project)["lessonNumber"] == 3
+
+    first_body, first_headers = sent[0]
+    second_body, second_headers = sent[1]
+    assert first_body == second_body
+    assert b"conteudo do projeto" in second_body
+    assert int(first_headers["Content-Length"]) == len(first_body)
+    assert int(second_headers["Content-Length"]) == len(second_body)
+
+
+# --- the tasks of the window -----------------------------------------------
+
+
+def test_only_the_newest_task_owns_the_window(desktop):
+    attempts = desktop.Attempts()
+    opening = attempts.start()  # the connection the window opens by itself
+    clicked = attempts.start()  # Conectar, typed while that one was still running
+
+    assert attempts.is_current(clicked)
+    assert not attempts.is_current(opening)  # its late answer must not touch the window

@@ -36,9 +36,10 @@ Para isso você precisa de: `python3` (com o pacote `markdown`), `chromium`, `po
 ## Servidor da sala
 
 ```sh
-cd sala && just sala-config     # o caminho do painel e a senha do professor
-cd sala && just sala-emulador   # baixa o EmulatorJS (uma vez por máquina)
-cd sala && just sala enduro     # compila o site e sobe o servidor para a turma
+cd sala
+just sala-config     # o caminho do painel e a senha do professor
+just sala-emulador   # baixa o EmulatorJS (uma vez por máquina)
+just sala enduro     # compila o site e sobe o servidor para a turma
 ```
 
 Para isso você precisa de: `python3`, `just`, `nodejs` e `pnpm` — e, se quiser que a turma chegue

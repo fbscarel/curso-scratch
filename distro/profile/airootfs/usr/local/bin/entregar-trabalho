@@ -172,66 +172,24 @@ def normalize_address(text: str, *, port: int = DEFAULT_PORT) -> str:
 # --- the server ------------------------------------------------------------
 
 
-class MultipartBody:
-    """The `POST /api/uploads` body of one file, read from disk as it is sent.
+def multipart_body(
+    path: Path, data: bytes, *, field: str = "file", boundary: str | None = None
+) -> tuple[bytes, str]:
+    """The `POST /api/uploads` body of one file, plus the Content-Type to send.
 
-    Only the small head and tail are held in memory: the file itself is read in
-    blocks while the request goes out, so even a big project never lands in RAM.
+    The bytes were read once, before the request went out: a retry (the session
+    token may have gone stale on the way) sends exactly the same file, and the
+    advertised Content-Length is the size of what really leaves the machine.
     """
-
-    def __init__(self, path: Path, *, field: str = "file", boundary: str | None = None) -> None:
-        self.path = path
-        self.boundary = boundary or uuid.uuid4().hex
-        self.content_type = f"multipart/form-data; boundary={self.boundary}"
-        filename = path.name.replace('"', "_").replace("\r", " ").replace("\n", " ")
-        self._head = (
-            f"--{self.boundary}\r\n"
-            f'Content-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
-            "Content-Type: application/octet-stream\r\n\r\n"
-        ).encode("utf-8")
-        self._tail = f"\r\n--{self.boundary}--\r\n".encode("utf-8")
-        self._size = path.stat().st_size
-        self._parts: tuple[bytes | None, ...] = (self._head, None, self._tail)
-        self._index = 0
-        self._offset = 0
-        self._sent = 0
-        self._stream = None
-
-    def __len__(self) -> int:
-        """The whole body size, so the request can carry a Content-Length."""
-        return len(self._head) + self._size + len(self._tail)
-
-    def rewind(self) -> None:
-        """Start over, so a retried request sends the whole file again."""
-        if self._stream is not None:
-            self._stream.close()
-            self._stream = None
-        self._index, self._offset, self._sent = 0, 0, 0
-
-    def read(self, size: int = -1) -> bytes:
-        """The next `size` bytes of head, file and tail, in that order."""
-        wanted = len(self) - self._sent if size is None or size < 0 else size
-        chunk = bytearray()
-        while wanted > 0 and self._index < len(self._parts):
-            part = self._parts[self._index]
-            if part is None:
-                if self._stream is None:
-                    self._stream = self.path.open("rb")
-                piece = self._stream.read(wanted)
-                if not piece:
-                    self._index += 1
-                    continue
-            else:
-                piece = part[self._offset : self._offset + wanted]
-                if not piece:
-                    self._index += 1
-                    self._offset = 0
-                    continue
-                self._offset += len(piece)
-            chunk += piece
-            wanted -= len(piece)
-            self._sent += len(piece)
-        return bytes(chunk)
+    boundary = boundary or uuid.uuid4().hex
+    filename = path.name.replace('"', "_").replace("\r", " ").replace("\n", " ")
+    head = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
+        "Content-Type: application/octet-stream\r\n\r\n"
+    ).encode("utf-8")
+    tail = f"\r\n--{boundary}--\r\n".encode("utf-8")
+    return head + data + tail, f"multipart/form-data; boundary={boundary}"
 
 
 class Sala:
@@ -254,13 +212,11 @@ class Sala:
         method: str,
         path: str,
         *,
-        body: bytes | MultipartBody | None = None,
+        body: bytes | None = None,
         headers: dict[str, str] | None = None,
         timeout: float | None = None,
     ) -> tuple[int, bytes]:
         """One request; returns its status and body. A dead server raises Falha."""
-        if isinstance(body, MultipartBody):
-            body.rewind()
         request = urllib.request.Request(self.base_url + path, data=body, method=method)
         for key, value in (headers or {}).items():
             request.add_header(key, value)
@@ -342,7 +298,7 @@ class Sala:
         method: str,
         path: str,
         *,
-        body: bytes | MultipartBody,
+        body: bytes,
         headers: dict[str, str] | None = None,
         timeout: float | None = None,
     ) -> bytes:
@@ -375,12 +331,12 @@ class Sala:
         """`POST /api/uploads`: hand in one file; returns the server's answer."""
         if path.stat().st_size > MAX_UPLOAD_BYTES:
             raise Falha(TOO_LARGE_MESSAGE)
-        body = MultipartBody(path)
+        body, content_type = multipart_body(path, path.read_bytes())
         response = self._write(
             "POST",
             "/api/uploads",
             body=body,
-            headers={"Content-Type": body.content_type, "Content-Length": str(len(body))},
+            headers={"Content-Type": content_type, "Content-Length": str(len(body))},
             timeout=UPLOAD_TIMEOUT,
         )
         data = self._parse(response)
@@ -389,7 +345,40 @@ class Sala:
         return data
 
 
+def open_classroom(address: str) -> tuple[Sala, dict, list[dict]]:
+    """Open one session and read the class list through it.
+
+    Both come from the same client, so the names installed in the window always
+    belong to the server whose session the entrega will use.
+    """
+    client = Sala(address)
+    session = client.session()
+    return client, session, client.students()
+
+
 # --- the window ------------------------------------------------------------
+
+
+class Attempts:
+    """Which task owns the window: only the newest attempt may touch it.
+
+    Two of them can be in flight — the opening connection, say, and a click on
+    Conectar that beat it — and they can finish in any order; the generation a
+    task started with tells its late completion that its answer is already old.
+    """
+
+    def __init__(self) -> None:
+        self.generation = 0
+
+    def start(self) -> int:
+        """Open a new attempt and return the generation it runs in."""
+        self.generation += 1
+        return self.generation
+
+    def is_current(self, generation: int) -> bool:
+        """True while no newer attempt has started since."""
+        return generation == self.generation
+
 
 CSS = (
     "window { font-size: 14pt; }\n"
@@ -417,6 +406,7 @@ def application(gtk, glib):
             self.students: list[dict] = []
             self.projects: list[Path] = []
             self.extra: Path | None = None
+            self.attempts = Attempts()
 
             root = gtk.Box(orientation=gtk.Orientation.VERTICAL, spacing=14)
             for side in ("top", "bottom", "start", "end"):
@@ -450,17 +440,21 @@ def application(gtk, glib):
             self.name_dropdown = gtk.DropDown()
             self.name_dropdown.add_css_class("big")
             self.name_dropdown.set_sensitive(False)
+            # Picking a name is what makes the file ready to go: without this the
+            # button waits for the next unrelated refresh, which on a first use
+            # (nothing remembered) may never come.
+            self.name_dropdown.connect("notify::selected", lambda *_: self._check())
             root.append(self.name_dropdown)
 
             self.address_box = gtk.Box(spacing=12)
             self.address_entry = gtk.Entry(hexpand=True)
             self.address_entry.set_placeholder_text("ex.: 192.168.0.10:8000")
             self.address_entry.connect("activate", lambda *_: self._connect())
-            connect = gtk.Button(label="Conectar")
-            connect.connect("clicked", lambda *_: self._connect())
+            self.connect_button = gtk.Button(label="Conectar")
+            self.connect_button.connect("clicked", lambda *_: self._connect())
             self.address_box.append(gtk.Label(label="Endereço da sala (está no quadro):", xalign=0))
             self.address_box.append(self.address_entry)
-            self.address_box.append(connect)
+            self.address_box.append(self.connect_button)
             root.append(self.address_box)
 
             root.append(self._heading("3. Entregar"))
@@ -500,7 +494,12 @@ def application(gtk, glib):
                 self.address_entry.grab_focus()
 
         def _task(self, work, done):
-            """Run `work` off the main loop and hand its result (or a Falha) to `done`."""
+            """Run `work` off the main loop and hand its result (or a Falha) to `done`.
+
+            The window waits for the newest task in the same way: the buttons are
+            off while it runs and a late answer from an older one is dropped.
+            """
+            generation = self.attempts.start()
             self.spinner.start()
             self._check()
 
@@ -511,11 +510,13 @@ def application(gtk, glib):
                     result = failure
                 except Exception as failure:  # noqa: BLE001 - any failure must reach the kid
                     result = Falha(str(failure))
-                glib.idle_add(self._finished, done, result)
+                glib.idle_add(self._finished, generation, done, result)
 
             threading.Thread(target=run, daemon=True).start()
 
-        def _finished(self, done, result):
+        def _finished(self, generation, done, result):
+            if not self.attempts.is_current(generation):
+                return False  # a newer attempt owns the spinner and the widgets
             self.spinner.stop()
             done(result)
             self._check()
@@ -532,59 +533,44 @@ def application(gtk, glib):
                 self._notice(str(error), error=True)
                 return
 
-            def work():
-                client = Sala(address)
-                return client, client.session()
-
             def done(result):
                 if isinstance(result, Falha):
                     self._show_address(True)
                     self._notice(str(result), error=True)
                     return
-                client, _session = result
-                self.client = client
+                self.client, _session, self.students = result
                 self.address_entry.set_text(address)
                 if remember:
                     save_value(ADDRESS_FILE, address)
                 self._show_address(False)
-                self._notice("Conectado! Agora escolha o seu nome.")
-                self._load_students()
-
-            self._task(work, done)
-
-        def _load_students(self):
-            client = self.client
-            if client is None:
-                return
-
-            def work():
-                return client.students()
-
-            def done(result):
-                if isinstance(result, Falha):
-                    self._show_address(True)
-                    self._notice(str(result), error=True)
-                    return
-                self.students = result
-                # A GtkDropDown always leaves a row selected once the model is
-                # not empty (set_selected(INVALID_LIST_POSITION) is a no-op in
-                # GTK 4.22), so row 0 is a placeholder and the names start at 1.
-                model = gtk.StringList()
-                model.append("Escolha o seu nome")
-                for student in result:
-                    model.append(student["name"])
-                self.name_dropdown.set_model(model)
-                remembered = read_saved(NAME_FILE)
-                for index, student in enumerate(result):
-                    if student["name"] == remembered:
-                        self.name_dropdown.set_selected(index + 1)
-                        break
-                self.name_dropdown.set_sensitive(bool(result))
-                if not result:
+                self._fill_names()
+                if self.students:
+                    self._notice("Conectado! Agora escolha o seu nome.")
+                else:
                     self._notice("Ainda não tem nenhum nome na lista. Chame o professor.", error=True)
-                self._check()
 
-            self._task(work, done)
+            self._task(lambda: open_classroom(address), done)
+
+        def _fill_names(self):
+            """Put the names that came with the connection into the dropdown."""
+            # A GtkDropDown always leaves a row selected once the model is not
+            # empty (set_selected(INVALID_LIST_POSITION) is a no-op in GTK 4.22),
+            # so row 0 is a placeholder and the names start at 1.
+            model = gtk.StringList()
+            model.append("Escolha o seu nome")
+            for student in self.students:
+                model.append(student["name"])
+            self.name_dropdown.set_model(model)
+            # The old pick belongs to the list that just went away: back to the
+            # placeholder, unless the kid's own name is in this new class.
+            self.name_dropdown.set_selected(0)
+            remembered = read_saved(NAME_FILE)
+            for index, student in enumerate(self.students):
+                if student["name"] == remembered:
+                    self.name_dropdown.set_selected(index + 1)
+                    break
+            self.name_dropdown.set_sensitive(bool(self.students))
+            self._check()
 
         # -- the projects ---------------------------------------------------
 
@@ -654,7 +640,11 @@ def application(gtk, glib):
             )
 
         def _check(self):
-            self.submit.set_sensitive(self._ready() and not self.spinner.get_spinning())
+            busy = self.spinner.get_spinning()
+            self.submit.set_sensitive(self._ready() and not busy)
+            # A second attempt started on top of a running one is exactly the
+            # race the generation guard would have to clean up: do not let it in.
+            self.connect_button.set_sensitive(not busy)
 
         def _submit(self):
             path = self._chosen_file()

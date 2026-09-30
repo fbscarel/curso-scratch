@@ -336,7 +336,8 @@ def test_main_announces_the_name_locally(board_serving: Config, avahi: FakeAvahi
 
     assert avahi.commands == [["avahi-publish", "-a", "-R", "sala.local", "192.168.99.99"]]
     assert avahi.sleeps == [serve.MDNS_SETTLE_SECONDS]  # waits before announcing
-    assert "Também em: http://sala.local:8000" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Também em: http://sala.local:8000 (anunciando 192.168.99.99)" in out
     assert avahi.children[0].terminated  # stopped together with the server
 
 
@@ -435,6 +436,26 @@ def test_main_stops_avahi_when_the_signal_lands_during_the_settle(
 
     assert avahi.sleeps == [serve.MDNS_SETTLE_SECONDS]
     assert avahi.children[0].terminated
+
+
+def test_main_stops_avahi_when_the_signal_lands_before_the_child_handle(
+    board_serving: Config, avahi: FakeAvahi, monkeypatch
+):
+    """A SIGTERM between Popen and the handle assignment must not orphan avahi."""
+    real_start = serve.start_mdns
+
+    def spawn_then_kill(name, address):
+        child = real_start(name, address)
+        os.kill(os.getpid(), signal.SIGTERM)  # exactly the window under test
+        return child
+
+    monkeypatch.setattr(serve, "start_mdns", spawn_then_kill)
+
+    with pytest.raises(SystemExit):
+        serve.main([])
+
+    assert avahi.children[0].terminated
+    assert signal.SIGTERM not in signal.pthread_sigmask(signal.SIG_BLOCK, [])  # mask restored
 
 
 def test_stop_mdns_kills_a_child_that_ignores_terminate():
