@@ -18,9 +18,13 @@ import { Current } from "@/screens/admin/Current";
 import { Lessons } from "@/screens/admin/Lessons";
 import { AdminLogin } from "@/screens/admin/Login";
 import { Students } from "@/screens/admin/Students";
+import { Uploads } from "@/screens/admin/Uploads";
 import { Home } from "@/screens/Home";
 import { Identity } from "@/screens/Identity";
+import { MyFiles } from "@/screens/MyFiles";
 import { NotFound } from "@/screens/NotFound";
+import { Sheets } from "@/screens/Sheets";
+import { Upload } from "@/screens/Upload";
 
 /**
  * App is the whole bootstrap, and it picks one of two applications.
@@ -60,33 +64,65 @@ export function App() {
  * screen's hero, and it is keyed on the route so that coming back from "Quem é
  * você?" after picking a name shows the name. That read is also what hands the
  * api client its CSRF token.
+ *
+ * Two screens need an identity before they mean anything -- handing work in and
+ * looking at what you have handed in -- and the guard is here rather than in the
+ * screens because the session is: a screen that redirected would first have to
+ * be given the session it is being redirected for. The kid is sent to the name
+ * cards with `?next=`, so choosing a name comes back to what they were doing.
  */
 function KidApp({ route }: { route: Route }) {
 	const session = useAsync<PublicSession>(
 		(signal) => getPublicSession(signal),
 		route.name,
 	);
+	const student = session.data?.student ?? null;
+	const guarded = route.name === "upload" || route.name === "my-files";
+	const target = hrefFor(route);
+
+	useEffect(() => {
+		if (!guarded || session.loading || session.error) return;
+		if (!session.data || session.data.student) return;
+		navigate(`/quem-sou-eu?next=${encodeURIComponent(target)}`);
+	}, [guarded, session.loading, session.error, session.data, target]);
 
 	return (
 		<div className="min-h-dvh">
-			<KidHeader student={session.data?.student ?? null} />
+			<KidHeader student={student} />
 			<main className="mx-auto max-w-5xl px-4 py-8">
 				{route.name === "identity" && <Identity />}
 				{route.name === "notfound" && <NotFound />}
+				{route.name === "sheets" && <Sheets />}
 				{route.name === "home" &&
 					(session.loading ? (
-						<KidHomeSkeleton />
+						<KidLoading />
 					) : session.error ? (
 						<ErrorNotice error={session.error} onRetry={session.reload} />
 					) : session.data ? (
 						<Home session={session.data} />
 					) : null)}
+				{guarded &&
+					(session.loading ? (
+						<KidLoading />
+					) : session.error ? (
+						<ErrorNotice error={session.error} onRetry={session.reload} />
+					) : student ? (
+						route.name === "upload" ? (
+							<Upload />
+						) : (
+							<MyFiles />
+						)
+					) : (
+						// The guard above is navigating to the name cards; this is
+						// the screen it is leaving, not a screen to show.
+						<KidLoading />
+					))}
 			</main>
 		</div>
 	);
 }
 
-function KidHomeSkeleton() {
+function KidLoading() {
 	return (
 		<div className="space-y-8">
 			<Skeleton className="h-48 rounded-3xl" />
@@ -191,6 +227,8 @@ function AdminScreen({
 			return (
 				<Attendance currentNumber={session.currentLesson?.number ?? null} />
 			);
+		case "admin-uploads":
+			return <Uploads currentNumber={session.currentLesson?.number ?? null} />;
 		case "notfound":
 			return (
 				<NotFound

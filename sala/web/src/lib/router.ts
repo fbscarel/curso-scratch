@@ -17,11 +17,15 @@ import { readAdminBase } from "@/lib/adminBase";
 export type Route =
 	| { name: "home" }
 	| { name: "identity" }
+	| { name: "upload" }
+	| { name: "my-files" }
+	| { name: "sheets" }
 	| { name: "admin-login" }
 	| { name: "admin-current" }
 	| { name: "admin-students" }
 	| { name: "admin-lessons" }
 	| { name: "admin-attendance" }
+	| { name: "admin-uploads" }
 	| { name: "notfound"; path: string; admin: boolean };
 
 export function parseRoute(
@@ -46,6 +50,8 @@ export function parseRoute(
 				return { name: "admin-lessons" };
 			case "presenca":
 				return { name: "admin-attendance" };
+			case "entregas":
+				return { name: "admin-uploads" };
 			default:
 				return { name: "notfound", path: pathname, admin: true };
 		}
@@ -53,8 +59,17 @@ export function parseRoute(
 
 	const parts = pathname.split("/").filter(Boolean);
 	if (parts.length === 0) return { name: "home" };
-	if (parts.length === 1 && parts[0] === "quem-sou-eu") {
-		return { name: "identity" };
+	if (parts.length === 1) {
+		switch (parts[0]) {
+			case "quem-sou-eu":
+				return { name: "identity" };
+			case "entregar":
+				return { name: "upload" };
+			case "meus-arquivos":
+				return { name: "my-files" };
+			case "folhas":
+				return { name: "sheets" };
+		}
 	}
 	return { name: "notfound", path: pathname, admin: false };
 }
@@ -65,6 +80,12 @@ export function hrefFor(route: Route, base: string = readAdminBase()): string {
 			return "/";
 		case "identity":
 			return "/quem-sou-eu";
+		case "upload":
+			return "/entregar";
+		case "my-files":
+			return "/meus-arquivos";
+		case "sheets":
+			return "/folhas";
 		case "admin-login":
 			return `${base}/login`;
 		case "admin-current":
@@ -75,6 +96,8 @@ export function hrefFor(route: Route, base: string = readAdminBase()): string {
 			return `${base}/aulas`;
 		case "admin-attendance":
 			return `${base}/presenca`;
+		case "admin-uploads":
+			return `${base}/entregas`;
 		case "notfound":
 			return route.path;
 	}

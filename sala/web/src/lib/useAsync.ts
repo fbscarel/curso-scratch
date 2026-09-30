@@ -47,6 +47,21 @@ export function useAsync<T>(
 
 	const reload = useCallback(() => setAttempt((n) => n + 1), []);
 
+	// What the PREVIOUS key answered is not an answer to this one, and the
+	// render right after a screen navigates is where that shows: a guard that
+	// reads the session would read the answer to the screen the browser is
+	// LEAVING, decide on it, and send the reader back where they came from.
+	// Clearing it here -- during the render, so React re-renders before this one
+	// is committed -- is what stops any consumer from reading one query's answer
+	// as another's.
+	const [answeredKey, setAnsweredKey] = useState(key);
+	if (answeredKey !== key) {
+		setAnsweredKey(key);
+		setData(null);
+		setError(null);
+		setLoading(true);
+	}
+
 	useEffect(() => {
 		current.current = requestId;
 		const ac = new AbortController();

@@ -11,9 +11,9 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from flask import Flask
+from flask import Flask, Response
 
-from . import api_admin, api_public, auth, db, spa
+from . import api_admin, api_public, auth, db, sheets, spa, uploads
 
 if TYPE_CHECKING:  # kept out of the import at runtime so `python -m app.config` is clean
     from .config import Config
@@ -40,6 +40,8 @@ def create_app(config: Config, *, dist_dir: Path | str | None = None) -> Flask:
     app.config["SALA_CONFIG"] = config
     app.config["SALA_DIST"] = dist
     app.secret_key = config.secret_key
+    # A kid's file is capped per file; the multipart framing rides on top.
+    app.config["MAX_CONTENT_LENGTH"] = uploads.MAX_CONTENT_LENGTH
     app.config.update(
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Strict",
@@ -49,7 +51,20 @@ def create_app(config: Config, *, dist_dir: Path | str | None = None) -> Flask:
 
     db.init_app(app)
     auth.init_app(app)
+
+    @app.after_request
+    def harden(response: Response) -> Response:
+        """`nosniff` everywhere: nothing this app sends is meant to be sniffed.
+
+        A file a kid handed in is served as an attachment, the folhas are PDFs
+        and the bundle is JS/CSS — but a browser that guesses a type could still
+        render an upload as the page's own origin. One header covers all of it.
+        """
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
     app.register_blueprint(api_public.bp)
     app.register_blueprint(api_admin.bp, url_prefix=f"{config.admin_path}/api")
+    app.register_blueprint(sheets.bp)
     app.register_blueprint(spa.bp)
     return app

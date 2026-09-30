@@ -46,6 +46,7 @@ DEFAULT_ERRORS: dict[int, str] = {
     404: "Não encontrei isso.",
     405: "Esse endereço não aceita esse tipo de pedido.",
     409: "Isso já existe ou está em uso.",
+    413: "Arquivo grande demais.",
     422: "Dados inválidos.",
     500: "Algo deu errado no servidor.",
 }

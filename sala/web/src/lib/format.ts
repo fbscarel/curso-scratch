@@ -73,6 +73,49 @@ export function formatFullDate(iso: string): string {
 	return `${formatDayMonth(iso)}/${date.getFullYear()}`;
 }
 
+/**
+ * formatSize renders a byte count the way a Brazilian kid reads it: "1,2 MB".
+ *
+ * The units are the powers of 1024 the file manager shows, and the separator is
+ * the comma. The rounding happens BEFORE the unit is chosen, so a file of
+ * 1048575 bytes -- which rounds to 1024,0 KB -- is promoted to "1,0 MB" rather
+ * than shown as a kilobyte count nobody writes.
+ */
+export function formatSize(bytes: number): string {
+	const size = Math.max(0, Math.round(bytes));
+	if (size < 1024) return `${size} B`;
+	const kb = Math.round((size / 1024) * 10) / 10;
+	if (kb < 1024) return `${kb.toFixed(1).replace(".", ",")} KB`;
+	const mb = Math.round((size / (1024 * 1024)) * 10) / 10;
+	return `${mb.toFixed(1).replace(".", ",")} MB`;
+}
+
+/**
+ * formatDateTime renders the API's `createdAt` ("2026-09-29 14:32:05") as
+ * "29/09 às 14h32".
+ *
+ * The string is taken apart rather than handed to `new Date`, for the same
+ * reason `parseISODate` does it: an unqualified datetime string is read as
+ * local time by some engines and as UTC by others, and the one this runs on
+ * would move every entrega's hour. Seconds are dropped -- a kid reading when
+ * they handed something in does not need them.
+ */
+export function formatDateTime(value: string): string {
+	const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(value);
+	if (!match) return value;
+	const [, year, month, day, hour, minute] = match;
+	if (
+		year === undefined ||
+		month === undefined ||
+		day === undefined ||
+		hour === undefined ||
+		minute === undefined
+	) {
+		return value;
+	}
+	return `${day}/${month} às ${hour}h${minute}`;
+}
+
 /** todayISO is today's local day, which is the default date of a new lesson. */
 export function todayISO(now: Date = new Date()): string {
 	const month = String(now.getMonth() + 1).padStart(2, "0");

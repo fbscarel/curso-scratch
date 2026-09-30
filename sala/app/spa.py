@@ -20,6 +20,7 @@ from flask import Blueprint, Response, abort, current_app, send_from_directory
 from werkzeug.exceptions import NotFound
 
 from . import auth
+from .sheets import FOLHAS_PREFIX
 
 bp = Blueprint("spa", __name__)
 
@@ -104,12 +105,24 @@ def fallback(path: str) -> Response:
         # `index.html` is the index by name as well as by `/`: it must not be a
         # second path to the shell with send_file's weaker cache policy.
         return _index_response(admin=False)
+    if _is_folha(url):
+        # Only `/folhas/aula<N>-<kind>.pdf` serves a file there (sheets.bp), and
+        # that rule would have claimed the request: anything else under
+        # `/folhas/` is a typo, not the SPA. `/folhas` itself is the screen.
+        abort(404)
     if Path(path).suffix:
         # A file of the build that is not under /assets/ (favicon.svg, say) is
         # served like any other file; anything else with an extension is not a
         # route, so it is not the index either.
         return _dist_file(path)
     return _index_response(admin=False)
+
+
+def _is_folha(url: str) -> bool:
+    """True for a path under `/folhas/` other than the screen itself."""
+    if not url.startswith(FOLHAS_PREFIX + "/"):
+        return False
+    return bool(url[len(FOLHAS_PREFIX) :].strip("/"))
 
 
 def _dist_file(path: str) -> Response:

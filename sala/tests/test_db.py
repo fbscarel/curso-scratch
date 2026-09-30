@@ -55,6 +55,19 @@ def test_schema_matches_the_spec(db):
     assert list(settings) == ["key", "value"]
     assert settings["key"]["pk"] == 1
 
+    uploads = _columns(db, "uploads")
+    assert list(uploads) == [
+        "id",
+        "lesson_number",
+        "student_id",
+        "original_name",
+        "stored_path",
+        "size",
+        "created_at",
+    ]
+    assert uploads["id"]["pk"] == 1
+    assert all(uploads[column]["notnull"] == 1 for column in uploads if column != "id")
+
 
 def test_user_version_counts_the_applied_migrations(db):
     assert user_version(db) == len(MIGRATIONS) > 0

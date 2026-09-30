@@ -253,6 +253,24 @@ def test_student_delete_refuses_one_with_attendance(
     assert _names(admin_client.get(f"{admin_api}/students").get_json()) == ["Ana Teste"]
 
 
+def test_student_delete_refuses_one_with_entregas(
+    admin_client, admin_api, csrf_of, client, add_student, add_lesson, as_student, upload_file
+):
+    # An entrega is the second thing that keeps a student from being deleted:
+    # the files would be left with a name nothing points at.
+    student = add_student("Ana Teste")
+    add_lesson(1, "2026-09-01")
+    upload_file(client, as_student(client, student))
+
+    response = admin_client.delete(
+        f"{admin_api}/students/{student}",
+        headers={CSRF_HEADER: csrf_of(admin_client, f"{admin_api}/session")},
+    )
+
+    assert response.status_code == 409
+    assert _names(admin_client.get(f"{admin_api}/students").get_json()) == ["Ana Teste"]
+
+
 # --- lessons ---------------------------------------------------------------
 
 
@@ -374,6 +392,20 @@ def test_lesson_delete_refuses_one_with_attendance(
 ):
     add_lesson(1, "2026-09-01")
     add_attendance(1, add_student("Ana Teste"))
+
+    response = admin_client.delete(
+        f"{admin_api}/lessons/1", headers={CSRF_HEADER: csrf_of(admin_client, f"{admin_api}/session")}
+    )
+
+    assert response.status_code == 409
+    assert admin_client.get(f"{admin_api}/lessons").get_json() == [{"number": 1, "date": "2026-09-01"}]
+
+
+def test_lesson_delete_refuses_one_with_entregas(
+    admin_client, admin_api, csrf_of, client, add_student, add_lesson, as_student, upload_file
+):
+    add_lesson(1, "2026-09-01")
+    upload_file(client, as_student(client, add_student("Ana Teste")))
 
     response = admin_client.delete(
         f"{admin_api}/lessons/1", headers={CSRF_HEADER: csrf_of(admin_client, f"{admin_api}/session")}

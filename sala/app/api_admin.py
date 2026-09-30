@@ -1,4 +1,5 @@
-"""Admin API (`<admin>/api`): login, students, lessons, override and attendance.
+"""Admin API (`<admin>/api`): login, students, lessons, override, attendance and
+the entregas (list, download, move between aulas, lesson zip).
 
 Mounted at `config.admin_path + "/api"`; everything except `session` and `login`
 needs the admin session (see `auth.admin_required`), and every non-GET request
@@ -11,17 +12,23 @@ import re
 import sqlite3
 from datetime import date
 
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
-from . import auth
+from . import auth, uploads
 from .db import SETTING_LESSON_OVERRIDE, delete_setting, get_db, set_setting
 from .lessons import current_lesson, get_lesson, lesson_override, today
 
 bp = Blueprint("api_admin", __name__)
 
-# Tables that keep a student/lesson from being deleted (S3/S5 add theirs here).
-STUDENT_REFERENCES: tuple[tuple[str, str], ...] = (("attendance", "student_id"),)
-LESSON_REFERENCES: tuple[tuple[str, str], ...] = (("attendance", "lesson_number"),)
+# Tables that keep a student/lesson from being deleted (S5 adds its own here).
+STUDENT_REFERENCES: tuple[tuple[str, str], ...] = (
+    ("attendance", "student_id"),
+    ("uploads", "student_id"),
+)
+LESSON_REFERENCES: tuple[tuple[str, str], ...] = (
+    ("attendance", "lesson_number"),
+    ("uploads", "lesson_number"),
+)
 
 MAX_NAME_LENGTH = 60
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -30,6 +37,10 @@ BAD_NAME_MESSAGE = "Escreva o nome do aluno."
 BAD_NUMBER_MESSAGE = "Escreva o número da aula (1, 2, 3, …)."
 BAD_DATE_MESSAGE = "Data inválida: use o formato AAAA-MM-DD."
 BAD_STUDENT_MESSAGE = "Não conheço esse aluno."
+BAD_FILTER_MESSAGE = "Filtro inválido."
+UPLOAD_SELECT = (
+    "SELECT u.*, s.name AS student_name FROM uploads u JOIN students s ON s.id = u.student_id"
+)
 
 
 # --- helpers ---------------------------------------------------------------
@@ -205,7 +216,9 @@ def student_delete(student_id: int) -> Response:
     connection = get_db()
     student = _student_or_404(connection, student_id)
     if _is_referenced(connection, STUDENT_REFERENCES, student_id):
-        raise auth.ApiError(409, f"{student['name']} tem presença registrada: desative em vez de excluir.")
+        raise auth.ApiError(
+            409, f"{student['name']} tem presença ou entregas: desative em vez de excluir."
+        )
     connection.execute("DELETE FROM students WHERE id = ?", (student_id,))
     connection.commit()
     return Response(status=204)
@@ -253,7 +266,7 @@ def lesson_delete(number: int) -> Response:
     connection = get_db()
     _lesson_or_404(connection, number)
     if _is_referenced(connection, LESSON_REFERENCES, number):
-        raise auth.ApiError(409, f"A aula {number} tem presença registrada: não dá para excluir.")
+        raise auth.ApiError(409, f"A aula {number} tem presença ou entregas: não dá para excluir.")
     connection.execute("DELETE FROM lessons WHERE number = ?", (number,))
     connection.commit()
     return Response(status=204)
@@ -332,3 +345,129 @@ def attendance_put(number: int) -> Response:
     )
     connection.commit()
     return Response(status=204)
+
+
+# --- entregas --------------------------------------------------------------
+
+
+def _optional_id(name: str) -> int | None:
+    """The `?lesson=`/`?student=` filter, or None when it was not sent."""
+    raw = request.args.get(name)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise auth.ApiError(422, BAD_FILTER_MESSAGE) from error
+    if value <= 0:
+        raise auth.ApiError(422, BAD_FILTER_MESSAGE)
+    return value
+
+
+def _upload_or_404(connection: sqlite3.Connection, upload_id: int) -> sqlite3.Row:
+    row = connection.execute(f"{UPLOAD_SELECT} WHERE u.id = ?", (upload_id,)).fetchone()
+    if row is None:
+        raise auth.ApiError(404, uploads.NOT_FOUND_MESSAGE)
+    return row
+
+
+@bp.get("/uploads")
+@auth.admin_required
+def uploads_list() -> Response:
+    """The entregas, newest first, filtered by aula and/or aluno."""
+    connection = get_db()
+    conditions: list[str] = []
+    parameters: list[int] = []
+    lesson = _optional_id("lesson")
+    student = _optional_id("student")
+    if lesson is not None:
+        conditions.append("u.lesson_number = ?")
+        parameters.append(lesson)
+    if student is not None:
+        conditions.append("u.student_id = ?")
+        parameters.append(student)
+    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+    rows = connection.execute(
+        f"{UPLOAD_SELECT}{where} ORDER BY u.created_at DESC, u.id DESC", parameters
+    ).fetchall()
+    return jsonify([uploads.upload_payload(row) for row in rows])
+
+
+@bp.get("/uploads/<int:upload_id>/download")
+@auth.admin_required
+def upload_download(upload_id: int) -> Response:
+    """Any entrega, whatever the aula or the aluno."""
+    return uploads.send_upload(
+        current_app.config["SALA_CONFIG"].data_dir, _upload_or_404(get_db(), upload_id)
+    )
+
+
+@bp.patch("/uploads/<int:upload_id>")
+@auth.admin_required
+def upload_update(upload_id: int) -> Response:
+    """Move one entrega to another aula: the file first, then the row.
+
+    The row is written only once the file is in its new folder, and the file is
+    put back where the row still says it is if that write fails: a failure never
+    leaves the teacher with a row pointing at nothing.
+    """
+    connection = get_db()
+    row = _upload_or_404(connection, upload_id)
+    number = auth.json_body().get("lessonNumber")
+    if isinstance(number, bool) or not isinstance(number, int) or number <= 0:
+        raise auth.ApiError(422, BAD_NUMBER_MESSAGE)
+    if get_lesson(connection, number) is None:
+        raise auth.ApiError(422, f"A aula {number} não está cadastrada.")
+    if number == row["lesson_number"]:
+        return jsonify(uploads.upload_payload(row))
+    data_dir = current_app.config["SALA_CONFIG"].data_dir
+    source = data_dir / row["stored_path"]
+    if not source.is_file():
+        raise auth.ApiError(404, uploads.NOT_FOUND_MESSAGE)
+    stored, old_path, new_path = uploads.move_into_lesson(
+        data_dir,
+        stored_path=row["stored_path"],
+        lesson_number=number,
+        student_id=row["student_id"],
+        student_name=row["student_name"],
+        original_name=row["original_name"],
+        created=row["created_at"],
+    )
+    try:
+        connection.execute(
+            "UPDATE uploads SET lesson_number = ?, stored_path = ? WHERE id = ?",
+            (number, stored, upload_id),
+        )
+        connection.commit()
+    except BaseException:
+        uploads.restore_file(new_path, old_path)
+        # The folder the file left is empty now — and it is a folder the row
+        # never mentions any more, so it goes with the move.
+        try:
+            new_path.parent.rmdir()
+        except OSError:
+            pass
+        raise
+    return jsonify(uploads.upload_payload(_upload_or_404(connection, upload_id)))
+
+
+@bp.get("/uploads/lesson/<int:number>.zip")
+@auth.admin_required
+def uploads_zip(number: int) -> Response:
+    """Every entrega of one aula, as `<student name>/<file>` inside the zip."""
+    connection = get_db()
+    _lesson_or_404(connection, number)
+    archive = uploads.build_lesson_zip(
+        connection, current_app.config["SALA_CONFIG"].data_dir, number
+    )
+    response = send_file(
+        archive,
+        as_attachment=True,
+        download_name=f"entregas-aula-{number:02d}.zip",
+        mimetype="application/zip",
+    )
+    # `send_file` opens the file now and streams from that descriptor, so the
+    # name can go away before the response is sent: the zip never outlives the
+    # request that built it, not even if the client drops mid-download.
+    archive.unlink(missing_ok=True)
+    return response

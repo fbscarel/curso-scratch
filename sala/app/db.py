@@ -42,6 +42,18 @@ MIGRATIONS: tuple[str, ...] = (
         value TEXT
     );
     """,
+    # 5 — uploads ("Entregas"): one row per file an aluno handed in
+    """
+    CREATE TABLE uploads (
+        id INTEGER PRIMARY KEY,
+        lesson_number INTEGER NOT NULL REFERENCES lessons(number),
+        student_id INTEGER NOT NULL REFERENCES students(id),
+        original_name TEXT NOT NULL,
+        stored_path TEXT NOT NULL UNIQUE,
+        size INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    """,
 )
 
 SETTING_LESSON_OVERRIDE = "lesson_override"

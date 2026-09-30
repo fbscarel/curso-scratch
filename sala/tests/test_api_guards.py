@@ -1,8 +1,9 @@
-"""The two app-wide rules, driven by the URL map instead of a test per route.
+"""The app-wide rules, driven by the URL map instead of a test per route.
 
 A route added later is covered the moment it is registered: under the admin API
 it must answer 401 without a login, and any non-GET route anywhere in the app
-must answer 400 without — or with a wrong — CSRF token.
+must answer 400 without — or with a wrong — CSRF token. Every response, whatever
+its status, refuses type sniffing.
 
 The set of routes each rule covers is written out below rather than counted: a
 floor ("at least ten were checked") passes on a smaller app, which is exactly
@@ -37,6 +38,10 @@ EXPECTED_ADMIN_GUARDED = {
     ("PUT", "/override"),
     ("GET", "/attendance/1"),
     ("PUT", "/attendance/1"),
+    ("GET", "/uploads"),
+    ("GET", "/uploads/1/download"),
+    ("PATCH", "/uploads/1"),
+    ("GET", "/uploads/lesson/1.zip"),
 }
 
 # Every non-GET method of the whole app, public and admin alike; the admin ones
@@ -54,6 +59,8 @@ EXPECTED_NON_GET = {
     ("DELETE", "/lessons/1"),
     ("PUT", "/override"),
     ("PUT", "/attendance/1"),
+    ("POST", "/api/uploads"),
+    ("PATCH", "/uploads/1"),
 }
 
 
@@ -108,3 +115,31 @@ def test_every_non_get_route_needs_the_csrf_token(app, client, csrf_of):
             assert wrong.get_json()["code"] == CSRF_ERROR_CODE, f"{method} {url} com token errado"
             checked.add((method, _admin_relative(url, admin_api)))
     assert checked == EXPECTED_NON_GET
+
+
+def test_every_response_refuses_to_be_sniffed(
+    app, client, add_student, add_lesson, as_student, upload_file
+):
+    # A kid's upload is served as an attachment, but a browser that guesses a
+    # type could still render it as this origin: the header is on every answer,
+    # pages, JSON, assets and errors alike.
+    admin_api = app.config["SALA_CONFIG"].admin_path + "/api"
+    add_lesson(1, "2026-09-01")
+    token = as_student(client, add_student("Ana Teste"))
+    assert upload_file(client, token, "jogo.sb3", b"abc").headers[
+        "X-Content-Type-Options"
+    ] == "nosniff"
+    upload_id = client.get("/api/my-uploads").get_json()[0]["id"]
+
+    for url in (
+        "/",
+        "/assets/app.js",
+        "/api/session",
+        "/api/nao-existe",
+        "/professor-teste",
+        f"{admin_api}/session",
+        f"{admin_api}/uploads",
+        f"/api/uploads/{upload_id}/download",
+    ):
+        response = client.get(url)
+        assert response.headers["X-Content-Type-Options"] == "nosniff", url

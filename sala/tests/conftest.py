@@ -7,14 +7,16 @@ Every test runs against its own `dados/` (pytest's tmp_path) and its own bundle
 
 from __future__ import annotations
 
+import io
 from collections.abc import Callable, Iterator
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from app import create_app
+from app.auth import CSRF_HEADER
 from app.config import Config, hash_password
 from app.db import SETTING_LESSON_OVERRIDE, connect, migrate, set_setting
 
@@ -27,6 +29,9 @@ PASSWORD_HASH = hash_password(PASSWORD)
 # The day the suite pretends to be: `create_app` pins it through SALA_TODAY, so
 # "the current lesson" and the default date of a new lesson never move.
 TODAY = date(2026, 9, 29)
+# The moment the suite pretends it is: every entrega is stamped with it, so the
+# stored name and `createdAt` do not depend on the second the suite runs.
+NOW = datetime(2026, 9, 29, 14, 32, 5)
 
 # A stand-in for the Vite output: what spa.py reads, injects into and serves.
 INDEX_HTML = (
@@ -69,6 +74,11 @@ def today() -> date:
 
 
 @pytest.fixture
+def now() -> datetime:
+    return NOW
+
+
+@pytest.fixture
 def dist_dir(tmp_path: Path) -> Path:
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
@@ -82,6 +92,7 @@ def app(config: Config, dist_dir: Path, today: date):
     application = create_app(config, dist_dir=dist_dir)
     application.config["TESTING"] = True
     application.config["SALA_TODAY"] = today
+    application.config["SALA_NOW"] = NOW
     return application
 
 
@@ -161,3 +172,40 @@ def set_override(db) -> Callable[[int], None]:
         db.commit()
 
     return set_it
+
+
+@pytest.fixture
+def as_student(csrf_of) -> Callable[..., str]:
+    """Pick a name in a client's public session; returns its CSRF token."""
+
+    def pick(client: Any, student_id: int) -> str:
+        token = csrf_of(client)
+        response = client.put(
+            "/api/identity", json={"studentId": student_id}, headers={CSRF_HEADER: token}
+        )
+        assert response.status_code == 204
+        return token
+
+    return pick
+
+
+@pytest.fixture
+def upload_file() -> Callable[..., Any]:
+    """POST one file to `/api/uploads` as a multipart form, like the SPA does."""
+
+    def send(
+        client: Any,
+        csrf: str,
+        name: str = "jogo.sb3",
+        data: bytes = b"conteudo",
+        *,
+        field: str = "file",
+    ):
+        return client.post(
+            "/api/uploads",
+            data={field: (io.BytesIO(data), name)},
+            headers={CSRF_HEADER: csrf},
+            content_type="multipart/form-data",
+        )
+
+    return send

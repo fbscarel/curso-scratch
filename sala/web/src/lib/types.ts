@@ -77,3 +77,53 @@ export interface Attendance {
 	lesson: Lesson;
 	students: AttendanceStudent[];
 }
+
+/**
+ * One entrega, as the kid's own list and the upload response carry it.
+ *
+ * `name` is the file's own name, as a basename and nothing else: the server
+ * strips any path, control characters and leading dots before it stores it,
+ * because the same string becomes the download's file name. For the names a
+ * browser hands over it is what the kid typed; `size` is in bytes, which is what
+ * `formatSize` turns into the "1,2 MB" they read.
+ */
+export interface Upload {
+	id: number;
+	lessonNumber: number;
+	name: string;
+	size: number;
+	createdAt: string;
+}
+
+/**
+ * One entrega as the teacher's list carries it.
+ *
+ * The student is embedded rather than referenced: the table prints a name and
+ * has no second request to make for it, and the row has to keep saying whose
+ * file it is even when the class list is filtered.
+ */
+export interface AdminUpload extends Upload {
+	student: Student;
+}
+
+/** The two kinds of folha a lesson can have. */
+export type SheetKind = "ficha" | "desafios";
+
+/** One PDF of one aula. `url` is served by the lab server, never built here. */
+export interface Sheet {
+	kind: SheetKind;
+	title: string;
+	url: string;
+}
+
+/**
+ * `GET /api/sheets`: one entry per aula that HAS folhas, ascending.
+ *
+ * A lesson with neither PDF is absent from the list rather than present with an
+ * empty array, so a screen does not have to know that an empty group is a thing
+ * that exists.
+ */
+export interface LessonSheets {
+	lessonNumber: number;
+	sheets: Sheet[];
+}
