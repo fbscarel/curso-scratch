@@ -80,6 +80,8 @@ interface MockGame {
 	maker: string;
 	about: string;
 	controls: { keys: string[]; action: string }[];
+	/** Whether the game reports its own pontuação (our own, or a score block). */
+	autoScore: boolean;
 	playable: boolean;
 	missing: "rom" | "core" | null;
 }
@@ -109,6 +111,7 @@ const CATALOGUE: MockGame[] = [
 			{ keys: ["↑"], action: "acelerar" },
 			{ keys: ["Enter"], action: "reiniciar" },
 		],
+		autoScore: true,
 		playable: true,
 		missing: null,
 	},
@@ -127,6 +130,7 @@ const CATALOGUE: MockGame[] = [
 			{ keys: ["v"], action: "select" },
 			{ keys: ["Enter"], action: "reiniciar" },
 		],
+		autoScore: false,
 		playable: true,
 		missing: null,
 	},
@@ -143,6 +147,7 @@ const CATALOGUE: MockGame[] = [
 			{ keys: ["←", "→"], action: "andar" },
 			{ keys: ["x"], action: "pular" },
 		],
+		autoScore: false,
 		playable: true,
 		missing: null,
 	},
@@ -160,6 +165,7 @@ const CATALOGUE: MockGame[] = [
 			{ keys: ["v"], action: "ficha (moeda)" },
 			{ keys: ["Enter"], action: "começar" },
 		],
+		autoScore: true,
 		playable: true,
 		missing: null,
 	},
@@ -178,6 +184,7 @@ const CATALOGUE: MockGame[] = [
 			{ keys: ["v"], action: "ficha (moeda)" },
 			{ keys: ["Enter"], action: "começar" },
 		],
+		autoScore: false,
 		playable: true,
 		missing: null,
 	},
@@ -196,6 +203,7 @@ const CATALOGUE: MockGame[] = [
 			{ keys: ["z"], action: "correr" },
 			{ keys: ["Enter"], action: "começar" },
 		],
+		autoScore: false,
 		playable: true,
 		missing: null,
 	},
@@ -213,6 +221,7 @@ const CATALOGUE: MockGame[] = [
 			{ keys: ["x"], action: "pular" },
 			{ keys: ["Enter"], action: "começar" },
 		],
+		autoScore: false,
 		playable: false,
 		missing: "rom",
 	},
@@ -230,6 +239,7 @@ const CATALOGUE: MockGame[] = [
 			{ keys: ["x"], action: "pular" },
 			{ keys: ["Enter"], action: "começar" },
 		],
+		autoScore: false,
 		playable: false,
 		missing: "core",
 	},
@@ -250,6 +260,7 @@ const CATALOGUE: MockGame[] = [
 			{ keys: ["↑", "↓", "W", "S"], action: "mover a raquete" },
 			{ keys: ["P"], action: "pausar" },
 		],
+		autoScore: true,
 		playable: true,
 		missing: null,
 	},
@@ -783,6 +794,7 @@ function publicGame(game: MockGame): unknown {
 		maker: game.maker,
 		about: game.about,
 		controls: game.controls,
+		autoScore: game.autoScore,
 	};
 }
 
@@ -895,9 +907,10 @@ function scoreboardOf(gameId: string): unknown {
 /**
  * createScore is `POST /api/scores`, with the server's refusals.
  *
- * An automatic pontuação is only accepted from a game of our own -- an emulated
- * game has no way to count one -- and it is approved as it arrives, where a
- * self-report waits for the teacher.
+ * An automatic pontuação is only accepted from a game that can count its own --
+ * our own page, or an emulated game whose catalogue entry says where its score
+ * lives -- and it is approved as it arrives, where a self-report waits for the
+ * teacher.
  */
 function createScore(body: unknown): Response {
 	const student = students.find((item) => item.id === identity && item.active);
@@ -918,7 +931,7 @@ function createScore(body: unknown): Response {
 	if (method !== "auto" && method !== "self") {
 		return failure(422, "Forma de pontuação inválida.");
 	}
-	if (method === "auto" && game.type !== "builtin") {
+	if (method === "auto" && !game.autoScore) {
 		return failure(422, "Este jogo não manda a pontuação sozinho.");
 	}
 

@@ -12,6 +12,7 @@ from app import emulator_page, games
 
 PLAY = "/emulador/play"
 PLAY_JS = "/emulador/play.js"
+SCORE_JS = "/emulador/score.js"
 DATA = "/emulador/data"
 
 # The exact policy the page must send: 'unsafe-eval' because
@@ -123,11 +124,12 @@ def test_the_play_page_has_no_inline_script(client, install_games, set_game_mode
     document = play(client, "enduro").get_data(as_text=True)
     scripts = scripts_of(document)
 
-    assert len(scripts.tags) == 2
+    assert len(scripts.tags) == 3
     for tag in scripts.tags:
         assert tag.get("src") or tag.get("type") == "application/json", tag
     executable = [tag for tag in scripts.tags if tag.get("type") != "application/json"]
-    assert [tag["src"] for tag in executable] == [PLAY_JS]
+    # The decoder is loaded before the page that uses it.
+    assert [tag["src"] for tag in executable] == [SCORE_JS, PLAY_JS]
     assert "javascript:" not in document
 
 
@@ -177,6 +179,29 @@ def test_the_config_keeps_only_the_kid_safe_buttons(client, install_games, set_g
     assert not any(config["buttons"].values())
     for kept in ("pause", "controls", "volume", "settings", "fullscreen"):
         assert kept not in config["buttons"]
+
+
+def test_the_config_carries_the_score_block_of_the_game(client, install_games, set_game_mode):
+    install_games("frogger")
+    set_game_mode(active="frogger")
+
+    config = config_of(play(client, "frogger").get_data(as_text=True))
+
+    # The hex offsets of jogos.yml arrive as plain numbers.
+    assert config["score"] == {
+        "bcd": [0x453C, 0x453B],
+        "multiplier": 10,
+        "inGame": {"offset": 0x454C, "not": 0x00},
+    }
+
+
+def test_the_config_of_a_game_without_a_score_block_says_null(client, install_games, set_game_mode):
+    install_games("space-invaders")
+    set_game_mode(active="space-invaders")
+
+    config = config_of(play(client, "space-invaders").get_data(as_text=True))
+
+    assert config["score"] is None
 
 
 # --- the 404s --------------------------------------------------------------
@@ -283,8 +308,18 @@ def test_the_play_script_is_served_and_talks_to_the_parent(client):
     assert response.mimetype == "text/javascript"
     assert response.headers["Cache-Control"] == "no-store"
     assert "postMessage" in body
-    for message in ("sala:ready", "sala:started", "sala:error"):
+    for message in ("sala:ready", "sala:started", "sala:error", "sala:score"):
         assert message in body
+
+
+def test_the_score_decoder_is_served(client):
+    response = client.get(SCORE_JS)
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert response.mimetype == "text/javascript"
+    assert response.headers["Cache-Control"] == "no-store"
+    assert "SalaScore" in body
 
 
 def test_the_emulator_files_are_served_with_a_long_cache(client, emulator):

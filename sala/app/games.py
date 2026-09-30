@@ -2,8 +2,9 @@
 
 `jogos.yml` is tracked and holds ROM *names* only — never a ROM. It is read and
 validated on start: an entry with a bad id, a ROM path that could leave the ROM
-directory, an unknown system or a core the emulator manifest does not cover stops
-the server with a Brazilian Portuguese message naming the file and the entry.
+directory, an unknown system, a core the emulator manifest does not cover or a
+`score` block that does not describe a savestate stops the server with a
+Brazilian Portuguese message naming the file and the entry.
 
 Two settings decide what a kid sees: `active_game` (single-game mode) and
 `free_mode`. A game is *playable* when its ROM file is under `SALA_ROMS` and the
@@ -64,6 +65,12 @@ CORE_CONTROL_SCHEMES = {"genesis_plus_gx": "segaMD"}
 
 ID_PATTERN = re.compile(r"[a-z0-9-]+")
 
+# The `score` block: how many packed-BCD bytes a score may be read from, and the
+# only multipliers a game may need (the digits it never stores).
+SCORE_MAX_BYTES = 4
+SCORE_MULTIPLIERS = (1, 10, 100)
+BYTE_MAX = 0xFF
+
 NOT_FOUND_MESSAGE = "Não encontrei esse jogo."
 
 
@@ -84,6 +91,48 @@ class Control:
 
 
 @dataclass(frozen=True)
+class InGame:
+    """The savestate byte that tells a running match from the attract screen.
+
+    The catalogue gives the byte value that means "playing" (`is`) or the one
+    that means "not playing" (`not`), never both.
+    """
+
+    offset: int
+    is_value: int | None = None
+    not_value: int | None = None
+
+    def payload(self) -> dict:
+        flag: dict = {"offset": self.offset}
+        if self.is_value is not None:
+            flag["is"] = self.is_value
+        else:
+            flag["not"] = self.not_value
+        return flag
+
+
+@dataclass(frozen=True)
+class ScoreBlock:
+    """Where a game keeps its score in the core's savestate (`score` in the file).
+
+    `bcd` lists the offsets of the packed-BCD bytes, most significant first, and
+    `multiplier` restores the digits the game does not store (Frogger never keeps
+    the constant units 0).
+    """
+
+    bcd: tuple[int, ...]
+    multiplier: int
+    in_game: InGame
+
+    def payload(self) -> dict:
+        return {
+            "bcd": list(self.bcd),
+            "multiplier": self.multiplier,
+            "inGame": self.in_game.payload(),
+        }
+
+
+@dataclass(frozen=True)
 class Jogo:
     """One catalogue entry. `system`, `core` and `rom` are None for builtin games."""
 
@@ -97,6 +146,7 @@ class Jogo:
     maker: str
     about: str
     controls: tuple[Control, ...]
+    score: ScoreBlock | None = None
 
 
 def catalogue_path() -> Path:
@@ -187,7 +237,7 @@ def _parse_entry(where: str, entry: dict) -> Jogo:
     controls = _controls(where, entry)
 
     if kind == TYPE_BUILTIN:
-        extra = [key for key in ("system", "core", "rom") if entry.get(key) is not None]
+        extra = [key for key in ("system", "core", "rom", "score") if entry.get(key) is not None]
         if extra:
             raise CatalogueError(
                 f"{where}: um jogo 'builtin' não tem {', '.join(extra)} (ele é a nossa página)."
@@ -244,6 +294,7 @@ def _parse_entry(where: str, entry: dict) -> Jogo:
         maker=maker,
         about=about,
         controls=controls,
+        score=_score_block(where, entry),
     )
 
 
@@ -267,6 +318,93 @@ def _controls(where: str, entry: dict) -> tuple[Control, ...]:
             raise CatalogueError(f"{where}: controls {position}: falta a 'action' em português.")
         controls.append(Control(keys=tuple(key.strip() for key in keys), action=action.strip()))
     return tuple(controls)
+
+
+def _is_offset(value: object) -> bool:
+    """True for a whole number that can be a savestate offset (a bool is not)."""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_byte(value: object) -> bool:
+    """True for a whole number that fits a byte (a bool is not one)."""
+    return _is_offset(value) and value <= BYTE_MAX
+
+
+def _score_block(where: str, entry: dict) -> ScoreBlock | None:
+    """The `score` block of an emulated entry, or None when the game has none.
+
+    Only an emulated game can have one: its score lives in a savestate the page
+    reads. The offsets are not checked against the state length here -- that is
+    the core's business at runtime -- but they have to be numbers that could be
+    one, and the in-game flag has to say which byte value means "playing".
+    """
+    raw = entry.get("score")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise CatalogueError(
+            f"{where}: 'score' precisa ser um bloco com 'bcd', 'multiplier' e 'in_game'."
+        )
+    bcd = raw.get("bcd")
+    if (
+        not isinstance(bcd, list)
+        or not 1 <= len(bcd) <= SCORE_MAX_BYTES
+        or not all(_is_offset(byte) for byte in bcd)
+    ):
+        raise CatalogueError(
+            f"{where}: 'score.bcd' precisa ser uma lista de 1 a {SCORE_MAX_BYTES} posições"
+            " (números inteiros ≥ 0), da mais significativa para a menos."
+        )
+    multiplier = raw.get("multiplier")
+    if (
+        not isinstance(multiplier, int)
+        or isinstance(multiplier, bool)
+        or multiplier not in SCORE_MULTIPLIERS
+    ):
+        raise CatalogueError(
+            f"{where}: 'score.multiplier' precisa ser 1, 10 ou 100 (os dígitos que o jogo"
+            " não guarda)."
+        )
+    # The server refuses a pontuação above its own cap, so a block that could
+    # decode one would only ever hand the kid a save that cannot succeed: the
+    # widest number these bytes can hold, times the multiplier, has to fit.
+    # `scores` imports this module (`by_id`), so it is imported here.
+    from . import scores
+
+    highest = int("99" * len(bcd)) * multiplier
+    if highest > scores.SCORE_MAX:
+        highest_text = f"{highest:,}".replace(",", ".")
+        raise CatalogueError(
+            f"{where}: 'score' pode ler até {highest_text} pontos, acima do limite de"
+            f" {scores.SCORE_MAX_TEXT}."
+        )
+    return ScoreBlock(
+        bcd=tuple(bcd), multiplier=multiplier, in_game=_in_game(where, raw.get("in_game"))
+    )
+
+
+def _in_game(where: str, raw: object) -> InGame:
+    """The `in_game` flag of a `score` block: an offset and `is` or `not`."""
+    if not isinstance(raw, dict):
+        raise CatalogueError(
+            f"{where}: 'score.in_game' precisa de 'offset' e de um entre 'is' e 'not'."
+        )
+    offset = raw.get("offset")
+    if not _is_offset(offset):
+        raise CatalogueError(f"{where}: 'score.in_game.offset' precisa ser um número inteiro ≥ 0.")
+    has_is, has_not = "is" in raw, "not" in raw
+    if has_is == has_not:
+        raise CatalogueError(
+            f"{where}: 'score.in_game' precisa de exatamente um entre 'is' e 'not'"
+            " (o byte que diz que o jogo começou)."
+        )
+    key = "is" if has_is else "not"
+    value = raw[key]
+    if not _is_byte(value):
+        raise CatalogueError(f"{where}: 'score.in_game.{key}' precisa ser um byte (0 a 255).")
+    return InGame(
+        offset=offset, is_value=value if has_is else None, not_value=None if has_is else value
+    )
 
 
 # --- settings, modes and visibility ----------------------------------------
@@ -372,10 +510,11 @@ def allows_auto_score(jogo: Jogo) -> bool:
     """True when the game may report a score by itself.
 
     Our own page counts the points and tells the server when the match ends; an
-    emulated game has no way of reporting what was scored inside it, so the
-    `self` report the teacher approves is what is left for those.
+    emulated game can only do the same when the catalogue says where its score
+    lives in the savestate (the `score` block), which is what the play page reads
+    to follow the game.
     """
-    return jogo.type == TYPE_BUILTIN
+    return jogo.type == TYPE_BUILTIN or jogo.score is not None
 
 
 def not_ready_message(jogo: Jogo) -> str:
@@ -402,6 +541,7 @@ def game_payload(jogo: Jogo) -> dict:
         "maker": jogo.maker,
         "about": jogo.about,
         "controls": [{"keys": list(control.keys), "action": control.action} for control in jogo.controls],
+        "autoScore": allows_auto_score(jogo),
     }
 
 

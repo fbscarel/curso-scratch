@@ -34,6 +34,54 @@ import { useRevalidateOnFocus } from "@/lib/useRevalidateOnFocus";
 const LazyPong = lazy(() => import("@/games/pong/PongGame"));
 
 /**
+ * The page the development mock puts where the emulator would be.
+ *
+ * In mock mode there is no lab server, so nothing serves `/emulador/play` and
+ * no ROM is loaded. This stand-in plays the page's part instead: it announces
+ * itself, says the game started, and then sends the score samples a real game
+ * would send -- an attract sample, a match that scores, and the sample that ends
+ * it -- so the live score and the end-of-match card can be looked at without a
+ * ROM. Development only: the mock branch that renders it is folded out of a
+ * production build, and this string with it.
+ *
+ * It is served as a blob URL rather than through `srcdoc`: a `srcdoc` document
+ * has an opaque origin, so the samples it sent would arrive as "null" and be
+ * refused by the same check that keeps other pages out.
+ */
+const MOCK_EMULATOR_PAGE = `<!doctype html>
+<html lang="pt-BR">
+<body style="margin:0;height:100%;background:#111;color:#fff;display:grid;place-items:center;font:18px system-ui">
+<p>Emulador de mentira (modo mock)</p>
+<script>
+(function () {
+  var send = function (message) {
+    parent.postMessage(message, window.location.origin);
+  };
+  send({ type: 'sala:ready' });
+  send({ type: 'sala:started' });
+  var samples = [
+    { inGame: false, score: 0 },
+    { inGame: true, score: 10 },
+    { inGame: true, score: 30 },
+    { inGame: true, score: 50 },
+    { inGame: false, score: 50 }
+  ];
+  var next = 0;
+  var timer = setInterval(function () {
+    if (next >= samples.length) {
+      clearInterval(timer);
+      return;
+    }
+    var sample = samples[next];
+    next += 1;
+    send({ type: 'sala:score', inGame: sample.inGame, score: sample.score });
+  }, 1000);
+})();
+</script>
+</body>
+</html>`;
+
+/**
  * How far along the embedded emulator is.
  *
  * `booting` is the runtime loading, `ready` is the runtime up and the game not
@@ -49,6 +97,12 @@ type Save =
 	| { state: "saving" }
 	| { state: "saved"; approved: boolean }
 	| { state: "failed"; message: string };
+
+/**
+ * One score sample from the emulator page: whether a match is running, and the
+ * points it read (null when that sample could not be read).
+ */
+type ScoreSample = { inGame: boolean; score: number | null };
 
 /**
  * GamePlay is one game, running.
@@ -70,6 +124,15 @@ type Save =
  * server puts on the placar at once -- and it needs a name to file it under, so
  * a kid who has not picked one yet is asked here, with the pontuação held in
  * memory until they answer.
+ *
+ * An EMULATED game whose catalogue entry says where its score lives does the
+ * same from the other side of the iframe: the page reads the score out of the
+ * core's memory once a second and sends it, and the screen latches the last
+ * score it could read while a match runs. When the page says the match ended,
+ * that latched number is the result -- filed exactly as a builtin game's is,
+ * under the same card, and skipped when it is zero or missing. An emulated game
+ * with no score block reports nothing, and its pontuação is only what the kid
+ * types into the placar.
  */
 export function GamePlay({
 	id,
@@ -82,6 +145,10 @@ export function GamePlay({
 }) {
 	const game = useAsync<Game>((signal) => getGame(id, signal), `game-${id}`);
 	const frame = useRef<HTMLIFrameElement | null>(null);
+	// The score handler reads the session student and the latch, and the message
+	// listener is installed once -- so the listener calls through this ref,
+	// which always holds the last render's handler.
+	const onScoreRef = useRef<(sample: ScoreSample) => void>(() => {});
 	const [phase, setPhase] = useState<Phase>("booting");
 	const [failure, setFailure] = useState<Error | null>(null);
 	// What the finished game scored and where filing it got to, and the counter
@@ -90,20 +157,41 @@ export function GamePlay({
 		null,
 	);
 	const [placarKey, setPlacarKey] = useState(0);
+	// The live score of a match in progress: `inGame` is the page's latest
+	// sample flag, and `liveScore` is the last score it could read. The refs are
+	// the same two values for the handler, which runs outside React's render and
+	// cannot read the state it has not seen yet.
+	const [inGame, setInGame] = useState(false);
+	const [liveScore, setLiveScore] = useState<number | null>(null);
+	const inGameRef = useRef(false);
+	const latchRef = useRef<number | null>(null);
 	const action = useAction();
 	// The development mock has no server to serve the emulator page, so it
-	// renders a stand-in and skips the messages. Development only: a production
-	// build folds this to `false`, and nothing else in the bundle mentions it.
+	// renders a stand-in that plays the page's part. Development only: a
+	// production build folds this to `false`, and nothing else in the bundle
+	// mentions it.
 	const mockMode = import.meta.env.DEV && import.meta.env.VITE_MOCK === "1";
+	// The blob the mock page is served from, made when the mock is on and
+	// revoked when the screen goes away. It is a blob and not a `srcdoc` so the
+	// document keeps this origin and its messages pass the check below.
+	const [mockSrc, setMockSrc] = useState<string | null>(null);
+	useEffect(() => {
+		if (!mockMode) return;
+		const url = URL.createObjectURL(
+			new Blob([MOCK_EMULATOR_PAGE], { type: "text/html" }),
+		);
+		setMockSrc(url);
+		return () => URL.revokeObjectURL(url);
+	}, []);
+	// Whether the game reports its own pontuação. Unknown until the catalogue
+	// answer arrives, and a sample that arrives before it has no game to belong
+	// to.
+	const autoScore = game.data?.autoScore ?? false;
 
 	// Installed once. The listener is about the page's messages, not about which
 	// game is on: a new game is a new document in the same frame, and the
 	// frame's own load event (below) is what puts the screen back to "booting".
 	useEffect(() => {
-		if (mockMode) {
-			setPhase("started");
-			return;
-		}
 		const onMessage = (event: MessageEvent) => {
 			const message = readEmulatorMessage(
 				event,
@@ -125,6 +213,10 @@ export function GamePlay({
 				setPhase("started");
 				return;
 			}
+			if (message.type === "sala:score") {
+				onScoreRef.current(message);
+				return;
+			}
 			setPhase("ready");
 		};
 		window.addEventListener("message", onMessage);
@@ -136,11 +228,16 @@ export function GamePlay({
 	 *
 	 * It clears whatever the last document said and puts the screen back to
 	 * "booting", which is what makes following a link from one game to another
-	 * start clean.
+	 * start clean. The latch goes with it: a score from the document that just
+	 * went away is not this game's.
 	 */
 	function onFrameLoad(): void {
 		setFailure(null);
 		setPhase("booting");
+		inGameRef.current = false;
+		latchRef.current = null;
+		setInGame(false);
+		setLiveScore(null);
 	}
 
 	/** Fullscreen is asked of the IFRAME, so the game fills the screen and not the page. */
@@ -180,7 +277,15 @@ export function GamePlay({
 		}
 	}
 
-	/** A builtin game is over: celebrate it, and file it if there is a name to file it under. */
+	/**
+	 * onGameOver is a match that has ended: celebrate it, and file its
+	 * pontuação if there is a name to file it under.
+	 *
+	 * Both kinds of game arrive here -- our own through its callback, an
+	 * emulated one through the score sample that says the match stopped -- and
+	 * everything after this point is the same for both: the card, the confetti,
+	 * and the automatic pontuação the server approves as it arrives.
+	 */
 	function onGameOver(score: number): void {
 		celebrate();
 		setResult({
@@ -207,6 +312,57 @@ export function GamePlay({
 				: null,
 		);
 	}
+
+	/**
+	 * onScore is what one score sample from the page means for the screen.
+	 *
+	 * A sample says two things: whether a match is running, and the score it
+	 * could read (null when this one could not be read). While a match runs the
+	 * screen LATCHES the last score it could read and shows it live -- a sample
+	 * without a number is not a score of zero, it is a reading to skip, and the
+	 * number on the board when the match ends is the one that matters.
+	 *
+	 * The moment the page says the match stopped -- `inGame` true, then false --
+	 * the latched score is the game's result, and it is filed once. A match that
+	 * ends with a latch of zero or none files nothing: that is the attract demo
+	 * or a round that never scored. The latch is cleared after filing and when a
+	 * new match starts, so one game's number is never filed for the next.
+	 *
+	 * The game only counts its own pontuação when the catalogue says it can; for
+	 * any other emulated game the samples are ignored.
+	 */
+	function onScore(sample: ScoreSample): void {
+		if (!autoScore) return;
+
+		if (sample.inGame) {
+			if (!inGameRef.current) {
+				// A new match: the last game's latch is not this one's.
+				latchRef.current = null;
+				setLiveScore(null);
+				onGameStart();
+			}
+			if (sample.score !== null) {
+				latchRef.current = sample.score;
+				setLiveScore(sample.score);
+			}
+			inGameRef.current = true;
+			setInGame(true);
+			return;
+		}
+
+		const latched = latchRef.current;
+		// Redundant today -- the latch is written only inside the in-game
+		// branch, so a positive latch already means a match was running -- and
+		// kept so a latch written anywhere else can never file an attract score.
+		if (inGameRef.current && latched !== null && latched > 0) {
+			latchRef.current = null;
+			setLiveScore(null);
+			onGameOver(latched);
+		}
+		inGameRef.current = false;
+		setInGame(false);
+	}
+	onScoreRef.current = onScore;
 
 	/**
 	 * pick names the kid the pontuação belongs to.
@@ -274,34 +430,26 @@ export function GamePlay({
 			<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
 				<div className="space-y-4">
 					{builtin ? (
-						<>
-							<Suspense
-								fallback={
-									<Skeleton className="aspect-video w-full rounded-3xl" />
-								}
-							>
-								<LazyPong onGameOver={onGameOver} onStart={onGameStart} />
-							</Suspense>
-							{result && (
-								<ResultCard
-									score={result.score}
-									save={result.save}
-									picking={action.busy}
-									pickError={action.error}
-									onPick={(chosen) => void pick(chosen)}
-									onRetry={() => void file(result.score)}
-								/>
-							)}
-						</>
+						<Suspense
+							fallback={
+								<Skeleton className="aspect-video w-full rounded-3xl" />
+							}
+						>
+							<LazyPong onGameOver={onGameOver} onStart={onGameStart} />
+						</Suspense>
 					) : (
 						<>
 							<div className="relative overflow-hidden rounded-3xl border-2 border-border bg-black shadow-sm">
 								{mockMode ? (
-									<div className="grid aspect-[4/3] w-full place-items-center bg-scratch-control">
-										<span className="rounded-2xl bg-background/80 px-4 py-2 font-bold text-lg">
-											{data.title} (emulador de mentira, modo mock)
-										</span>
-									</div>
+									mockSrc && (
+										<iframe
+											ref={frame}
+											src={mockSrc}
+											title={data.title}
+											onLoad={onFrameLoad}
+											className="aspect-[4/3] w-full border-0"
+										/>
+									)
 								) : (
 									<iframe
 										ref={frame}
@@ -347,6 +495,28 @@ export function GamePlay({
 							</div>
 						</>
 					)}
+
+					{/* The card under the game is the same one for both kinds of
+					    game; only what it says about the number differs. A builtin
+					    game reads its own score out, an emulated one gets it from
+					    the page's samples. */}
+					{result && (
+						<ResultCard
+							title={builtin ? "Sua pontuação" : "Fim de jogo!"}
+							scoreLine={
+								builtin ? (
+									pontos(result.score)
+								) : (
+									<>Você fez {pontos(result.score)} 🎉</>
+								)
+							}
+							save={result.save}
+							picking={action.busy}
+							pickError={action.error}
+							onPick={(chosen) => void pick(chosen)}
+							onRetry={() => void file(result.score)}
+						/>
+					)}
 				</div>
 
 				<aside className="space-y-4">
@@ -361,6 +531,13 @@ export function GamePlay({
 							{systemLabel(data.system)}
 						</Badge>
 					</div>
+
+					{/* The live score sits above the placar: while a match runs it is
+					    the number the kid is watching, and it belongs to this round
+					    rather than to the board. */}
+					{!builtin && autoScore && inGame && liveScore !== null && (
+						<LiveScore score={liveScore} />
+					)}
 
 					{/* The placar comes before what the game IS. At the lab's
 					    1366x768 the sidebar is taller than the screen, and the board
@@ -404,12 +581,13 @@ export function GamePlay({
 }
 
 /**
- * ResultCard is what a finished game of ours leaves on the screen.
+ * ResultCard is what a finished game leaves on the screen.
  *
- * It is about the PONTUAÇÃO, not about the game having ended -- the game says
- * that itself, on its own game-over screen with its own "Jogar de novo" -- and
- * the heading says so, so a kid does not read the same sentence twice with
- * different buttons under it.
+ * It is about the PONTUAÇÃO, not about the game having ended -- a builtin game
+ * says that itself, on its own game-over screen with its own "Jogar de novo",
+ * so its heading names the pontuação rather than the end -- and an emulated
+ * game's heading is what tells the kid the match stopped, since nothing else on
+ * the screen does.
  *
  * The pontuação is the headline, because it is what the kid just earned. Under
  * it is the part they cannot see for themselves -- whether it reached the
@@ -418,14 +596,16 @@ export function GamePlay({
  * away, and the score stays here while they answer.
  */
 function ResultCard({
-	score,
+	title,
+	scoreLine,
 	save,
 	picking,
 	pickError,
 	onPick,
 	onRetry,
 }: {
-	score: number;
+	title: string;
+	scoreLine: React.ReactNode;
 	save: Save;
 	picking: boolean;
 	pickError: Error | null;
@@ -437,13 +617,11 @@ function ResultCard({
 			<CardHeader>
 				<CardTitle className="flex items-center gap-3 text-2xl">
 					<Trophy aria-hidden="true" className="size-8" />
-					Sua pontuação
+					{title}
 				</CardTitle>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				<p className="font-extrabold text-5xl tracking-tight">
-					{pontos(score)}
-				</p>
+				<p className="font-extrabold text-5xl tracking-tight">{scoreLine}</p>
 
 				{save.state === "saving" && (
 					<p className="flex items-center gap-3 text-lg">
@@ -486,6 +664,30 @@ function ResultCard({
 						<NamePicker onPick={onPick} disabled={picking} />
 					</div>
 				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+/**
+ * LiveScore is the running pontuação of a match, big and in the side panel.
+ *
+ * The number is keyed by its own value so that a change remounts it and the
+ * entrance animation replays -- a count that only changes its text would sit
+ * still while the game moves. `pontos` writes the word that goes with it, so a
+ * kid reads "1 ponto" and "30 pontos".
+ */
+function LiveScore({ score }: { score: number }) {
+	return (
+		<Card className="border-2 border-scratch-motion">
+			<CardContent className="space-y-1 py-4">
+				<p className="font-bold text-lg text-muted-foreground">Pontos agora</p>
+				<p
+					key={score}
+					className="animate-in font-extrabold text-5xl tabular-nums duration-300 zoom-in-50"
+				>
+					{pontos(score)}
+				</p>
 			</CardContent>
 		</Card>
 	);

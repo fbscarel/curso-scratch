@@ -59,6 +59,7 @@ const ENDURO: Game = {
 	maker: "Activision",
 	about: "Corrida de resistência: ultrapasse os carros dia e noite.",
 	controls: [{ keys: ["←", "→"], action: "virar" }],
+	autoScore: true,
 };
 
 const PONG: Game = {
@@ -70,6 +71,20 @@ const PONG: Game = {
 	maker: "Atari",
 	about: "Rebata a bola com a sua raquete.",
 	controls: [{ keys: ["↑", "↓"], action: "mover a raquete" }],
+	autoScore: true,
+};
+
+/** An emulated game whose catalogue entry has no score block: nothing to read. */
+const GALAGA: Game = {
+	id: "galaga",
+	title: "Galaga",
+	type: "emulated",
+	system: "arcade",
+	year: 1981,
+	maker: "Namco",
+	about: "Pilote a nave e destrua as ondas de alienígenas.",
+	controls: [{ keys: ["←", "→"], action: "mover" }],
+	autoScore: false,
 };
 
 const ANA: Student = { id: 1, name: "Ana Teste" };
@@ -107,6 +122,7 @@ describe("the game page", () => {
 			}
 			if (path === "/api/games/pong") return jsonResponse(200, PONG);
 			if (path === "/api/games/enduro") return jsonResponse(200, ENDURO);
+			if (path === "/api/games/galaga") return jsonResponse(200, GALAGA);
 			if (path === "/api/students") {
 				return jsonResponse(200, [ANA, BRUNO]);
 			}
@@ -310,6 +326,259 @@ describe("the game page", () => {
 		expect(
 			await screen.findByText(/Este jogo não está liberado agora/),
 		).toBeTruthy();
+	});
+});
+
+/**
+ * An emulated game that counts its own pontuação.
+ *
+ * The page reads the score out of the core's memory once a second and sends it;
+ * what the screen does with those samples is the whole flow: show the number
+ * while a match runs, keep the last one it could read, and file it when the
+ * match ends -- once, and only when there is a number to file.
+ */
+describe("an emulated game that reads its own score", () => {
+	let fetchMock: Mock;
+	/** What `POST /api/scores` was called with, in order. */
+	let posted: unknown[];
+
+	beforeEach(() => {
+		posted = [];
+		rememberCsrf("tok-1");
+		fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		fetchMock.mockImplementation((path: string, init?: RequestInit) => {
+			if (String(path).endsWith("/scoreboard")) {
+				return jsonResponse(200, EMPTY_BOARD);
+			}
+			if (path === "/api/games/enduro") return jsonResponse(200, ENDURO);
+			if (path === "/api/games/galaga") return jsonResponse(200, GALAGA);
+			if (path === "/api/students") return jsonResponse(200, [ANA, BRUNO]);
+			if (path === "/api/identity" && init?.method === "PUT") {
+				return new Response(null, { status: 204 });
+			}
+			if (path === "/api/scores" && init?.method === "POST") {
+				posted.push(JSON.parse(String(init.body)));
+				return jsonResponse(201, { id: 1, score: 30, approved: true });
+			}
+			return jsonResponse(404, { error: `pedido inesperado: ${path}` });
+		});
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		forgetCsrf();
+	});
+
+	/** renderGame is the screen as the application mounts it. */
+	function renderGame(id: string, student: Student | null = ANA) {
+		return render(
+			<GamePlay id={id} student={student} onStudentChanged={() => undefined} />,
+		);
+	}
+
+	/** sample is one `sala:score` the page would send, from the frame it sends it from. */
+	async function sample(
+		from: MessageEventSource | null,
+		inGame: boolean,
+		score: number | null,
+	) {
+		const event = new MessageEvent("message", {
+			data: { type: "sala:score", inGame, score },
+			origin: window.location.origin,
+		});
+		Object.defineProperty(event, "source", { value: from });
+		// The listener is the screen's, so dispatching is a state update.
+		await act(async () => {
+			window.dispatchEvent(event);
+		});
+	}
+
+	/** theFrame is the iframe the emulator runs in, once the screen showed it. */
+	async function theFrame(): Promise<HTMLIFrameElement> {
+		return await waitFor(() => {
+			const frame = document.querySelector("iframe");
+			if (!frame) throw new Error("no iframe on the screen yet");
+			return frame;
+		});
+	}
+
+	it("shows the score while a match runs, and files it once when the match ends", async () => {
+		renderGame("enduro");
+		const frame = await theFrame();
+		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
+
+		// The attract screen: no match, so nothing to latch and nothing to show.
+		await sample(frame.contentWindow, false, 0);
+		expect(screen.queryByText("Pontos agora")).toBeNull();
+
+		await sample(frame.contentWindow, true, 10);
+		expect(await screen.findByText("Pontos agora")).toBeTruthy();
+		expect(screen.getByText("10 pontos")).toBeTruthy();
+
+		await sample(frame.contentWindow, true, 30);
+		expect(await screen.findByText("30 pontos")).toBeTruthy();
+
+		await sample(frame.contentWindow, false, 30);
+
+		expect(await screen.findByText("Fim de jogo!")).toBeTruthy();
+		expect(screen.getByText("Você fez 30 pontos 🎉")).toBeTruthy();
+		await waitFor(() =>
+			expect(posted).toEqual([{ gameId: "enduro", score: 30, method: "auto" }]),
+		);
+		// Once, and the live number goes with the match.
+		expect(posted).toHaveLength(1);
+		expect(screen.queryByText("Pontos agora")).toBeNull();
+	});
+
+	it("files one match once, however many samples the ended match still sends", async () => {
+		renderGame("enduro");
+		const frame = await theFrame();
+		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
+
+		await sample(frame.contentWindow, true, 30);
+		await sample(frame.contentWindow, false, 30);
+		await waitFor(() => expect(posted).toHaveLength(1));
+
+		// The page keeps sampling after the match is over -- the attract screen
+		// reads the demo's own score -- and none of those is the match's result
+		// again: the latch went with the number that was filed.
+		await sample(frame.contentWindow, false, 30);
+		await sample(frame.contentWindow, false, 30);
+
+		expect(posted).toHaveLength(1);
+	});
+
+	it("files nothing for an attract sequence that writes a score", async () => {
+		renderGame("enduro");
+		const frame = await theFrame();
+		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
+
+		// The attract demo plays by itself and writes a score into the same
+		// memory; with no match running it is not the kid's.
+		await sample(frame.contentWindow, false, 1580);
+
+		expect(screen.queryByText("Pontos agora")).toBeNull();
+		expect(screen.queryByText("Fim de jogo!")).toBeNull();
+		expect(posted).toEqual([]);
+	});
+
+	it("keeps the last score it could read when a sample has no number", async () => {
+		renderGame("enduro");
+		const frame = await theFrame();
+		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
+
+		await sample(frame.contentWindow, true, 30);
+		expect(await screen.findByText("30 pontos")).toBeTruthy();
+
+		// A sample that could not be read is skipped, not read as zero.
+		await sample(frame.contentWindow, true, null);
+		expect(screen.getByText("30 pontos")).toBeTruthy();
+
+		await sample(frame.contentWindow, false, null);
+		await waitFor(() =>
+			expect(posted).toEqual([{ gameId: "enduro", score: 30, method: "auto" }]),
+		);
+	});
+
+	it("files the next match too, and nothing for a match that never scored", async () => {
+		renderGame("enduro");
+		const frame = await theFrame();
+		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
+
+		await sample(frame.contentWindow, true, 10);
+		await sample(frame.contentWindow, false, 10);
+		await waitFor(() => expect(posted).toHaveLength(1));
+
+		// A second match: the card goes and the latch starts empty.
+		await sample(frame.contentWindow, true, 5);
+		await waitFor(() => expect(screen.queryByText("Fim de jogo!")).toBeNull());
+		expect(screen.getByText("5 pontos")).toBeTruthy();
+		await sample(frame.contentWindow, false, 5);
+		await waitFor(() => expect(posted).toHaveLength(2));
+
+		// A match that ends without scoring files nothing.
+		await sample(frame.contentWindow, true, 0);
+		await sample(frame.contentWindow, false, 0);
+		expect(posted).toHaveLength(2);
+		expect(posted).toEqual([
+			{ gameId: "enduro", score: 10, method: "auto" },
+			{ gameId: "enduro", score: 5, method: "auto" },
+		]);
+	});
+
+	it("files nothing for a new match whose samples carry no score", async () => {
+		renderGame("enduro");
+		const frame = await theFrame();
+		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
+
+		await sample(frame.contentWindow, true, 30);
+		await sample(frame.contentWindow, false, 30);
+		await waitFor(() => expect(posted).toHaveLength(1));
+		expect(await screen.findByText("Você fez 30 pontos 🎉")).toBeTruthy();
+
+		// A new match that never manages to read a number: the last match's 30
+		// is not this one's, on the screen or in a file.
+		await sample(frame.contentWindow, true, null);
+		expect(screen.queryByText("Pontos agora")).toBeNull();
+		expect(screen.queryByText("Você fez 30 pontos 🎉")).toBeNull();
+
+		await sample(frame.contentWindow, false, null);
+
+		expect(posted).toHaveLength(1);
+	});
+
+	it("ignores the samples of a game that cannot report its own", async () => {
+		renderGame("galaga");
+		const frame = await theFrame();
+		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
+
+		await sample(frame.contentWindow, true, 30);
+		await sample(frame.contentWindow, false, 30);
+
+		expect(screen.queryByText("Pontos agora")).toBeNull();
+		expect(screen.queryByText("Fim de jogo!")).toBeNull();
+		expect(posted).toEqual([]);
+	});
+
+	it("ignores a score sample from an origin that is not ours", async () => {
+		renderGame("enduro");
+		const frame = await theFrame();
+		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
+
+		const foreign = new MessageEvent("message", {
+			data: { type: "sala:score", inGame: true, score: 99 },
+			origin: "https://evil.example",
+		});
+		Object.defineProperty(foreign, "source", { value: frame.contentWindow });
+		await act(async () => {
+			window.dispatchEvent(foreign);
+		});
+
+		expect(screen.queryByText("Pontos agora")).toBeNull();
+		expect(posted).toEqual([]);
+	});
+
+	it("asks who the kid is, and files the match's score after they pick a name", async () => {
+		renderGame("enduro", null);
+		const frame = await theFrame();
+		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
+
+		await sample(frame.contentWindow, true, 40);
+		await sample(frame.contentWindow, false, 40);
+
+		expect(
+			await screen.findByText(/Quem é você\? Escolha o seu nome/),
+		).toBeTruthy();
+		expect(screen.getByText("Você fez 40 pontos 🎉")).toBeTruthy();
+		// Nothing is filed until there is a name to file it under.
+		expect(posted).toEqual([]);
+
+		fireEvent.click(await screen.findByRole("button", { name: /Bruno Teste/ }));
+
+		await waitFor(() =>
+			expect(posted).toEqual([{ gameId: "enduro", score: 40, method: "auto" }]),
+		);
 	});
 });
 

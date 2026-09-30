@@ -80,18 +80,41 @@ def test_a_score_the_kid_typed_waits_for_the_teacher(client, db, add_student, as
 def test_a_score_the_game_cannot_report_is_refused(
     client, db, add_student, as_student, install_games, add_lesson, set_game_mode
 ):
-    # Enduro has no way of telling the server its score: an `auto` report of it
-    # would be a number nobody counted, so it is refused and nothing is stored.
+    # Space Invaders has no `score` block, so nobody can say where its score
+    # lives: an `auto` report of it would be a number nobody counted, so it is
+    # refused and nothing is stored.
     add_lesson(1, "2026-09-01")
-    install_games("enduro")
-    set_game_mode(active="enduro")
+    install_games("space-invaders")
+    set_game_mode(active="space-invaders")
     token = as_student(client, add_student(ANA))
 
-    response = post(client, token, game_id="enduro", score=5)
+    response = post(client, token, game_id="space-invaders", score=5)
 
     assert response.status_code == 422
     assert response.get_json() == {"error": scores.AUTO_REFUSED_MESSAGE}
     assert rows(db) == []
+
+
+@pytest.mark.parametrize("game_id", ["enduro", "frogger"])
+def test_a_score_an_emulated_game_reported_is_approved_at_once(
+    client, db, add_student, as_student, install_games, add_lesson, set_game_mode, game_id
+):
+    # These two games carry a `score` block (the play page reads their RAM), so
+    # their auto report is taken like the one our own page sends.
+    add_lesson(1, "2026-09-01")
+    install_games(game_id)
+    set_game_mode(active=game_id)
+    token = as_student(client, add_student(ANA))
+
+    response = post(client, token, game_id=game_id, score=1580)
+
+    assert response.status_code == 201
+    assert response.get_json()["approved"] is True
+    assert (rows(db)[0]["game_id"], rows(db)[0]["method"], rows(db)[0]["approved"]) == (
+        game_id,
+        "auto",
+        1,
+    )
 
 
 def test_a_self_report_is_taken_for_any_visible_game(

@@ -14,6 +14,7 @@ const ENDURO: Game = {
 	maker: "Activision",
 	about: "Corrida de resistência: ultrapasse os carros dia e noite.",
 	controls: [{ keys: ["←", "→"], action: "virar" }],
+	autoScore: true,
 };
 
 const FROGGER: Game = {
@@ -28,6 +29,7 @@ const FROGGER: Game = {
 		{ keys: ["↑", "↓", "←", "→"], action: "pular" },
 		{ keys: ["v"], action: "ficha (moeda)" },
 	],
+	autoScore: true,
 };
 
 /** The one game of our own: no console, so no console badge either. */
@@ -40,6 +42,7 @@ const PONG: Game = {
 	maker: "Atari",
 	about: "Rebata a bola com a sua raquete.",
 	controls: [{ keys: ["↑", "↓"], action: "mover a raquete" }],
+	autoScore: true,
 };
 
 const EMPTY_BOARD = { record: null, top: [], myPending: [] };

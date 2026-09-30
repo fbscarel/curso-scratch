@@ -37,11 +37,18 @@ export function systemLabel(system: GameSystem | null): string {
  * `sala:ready` is the runtime loaded, `sala:started` is the game booted, and
  * `sala:error` carries a pt-BR sentence for the kid -- the page knows why it
  * could not start, and the SPA does not.
+ *
+ * `sala:score` is one sample of the game's own score, read from the core's
+ * memory while it runs: `inGame` says whether a match is running or the attract
+ * screen is showing, and `score` is the points the sample decoded to -- or null
+ * when it could not be read (a digit out of range, a state too short for the
+ * offsets), which is not the same as a score of zero.
  */
 export type EmulatorMessage =
 	| { type: "sala:ready" }
 	| { type: "sala:started" }
-	| { type: "sala:error"; message: string };
+	| { type: "sala:error"; message: string }
+	| { type: "sala:score"; inGame: boolean; score: number | null };
 
 /** What an `sala:error` without a readable message is shown as. */
 const EMULATOR_FALLBACK_ERROR = "Não foi possível abrir o jogo.";
@@ -59,8 +66,10 @@ const EMULATOR_FALLBACK_ERROR = "Não foi possível abrir o jogo.";
  * reference to this window.
  *
  * Anything unrecognised answers null and is ignored rather than treated as an
- * error: the page may grow new messages later (the scores), and a listener that
- * turned every one of them into a red box would make that impossible.
+ * error: the page may grow new messages later, and a listener that turned every
+ * one of them into a red box would make that impossible. The same goes for a
+ * known message whose fields are not the shapes it promised -- a score that is
+ * not a whole count of points is a sample to skip, not a broken game.
  */
 export function readEmulatorMessage(
 	event: MessageEvent,
@@ -83,6 +92,17 @@ export function readEmulatorMessage(
 					? message
 					: EMULATOR_FALLBACK_ERROR,
 		};
+	}
+	if (type === "sala:score") {
+		const { inGame, score } = data as { inGame?: unknown; score?: unknown };
+		if (typeof inGame !== "boolean") return null;
+		// A null score is the page saying it could not read this sample, which
+		// is a real answer: the sample is kept, only without a number.
+		if (score === null) return { type, inGame, score: null };
+		if (typeof score !== "number" || !Number.isInteger(score) || score < 0) {
+			return null;
+		}
+		return { type, inGame, score };
 	}
 	return null;
 }

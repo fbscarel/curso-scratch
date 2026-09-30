@@ -117,9 +117,22 @@ def test_a_builtin_game_is_listed_but_has_no_rom(client, monkeypatch, set_game_m
             "maker": "Atari",
             "about": "Bate-bola.",
             "controls": [{"keys": ["↑", "↓"], "action": "mover"}],
+            "autoScore": True,
         }
     ]
     assert client.get(f"{API}/pong/rom").status_code == 404
+
+
+def test_the_payload_says_which_emulated_games_score_by_themselves(client, install_games, set_game_mode):
+    install_games()
+    set_game_mode(free=True)
+
+    games_by_id = {game["id"]: game for game in client.get(API).get_json()["games"]}
+
+    assert games_by_id["enduro"]["autoScore"] is True
+    assert games_by_id["frogger"]["autoScore"] is True
+    assert games_by_id["space-invaders"]["autoScore"] is False
+    assert client.get(f"{API}/enduro").get_json()["autoScore"] is True
 
 
 def test_the_pong_of_the_catalogue_is_there_with_nothing_installed(client, roms, set_game_mode):

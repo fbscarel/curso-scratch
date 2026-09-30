@@ -151,6 +151,7 @@ def test_every_response_refuses_to_be_sniffed(
         f"/api/uploads/{upload_id}/download",
         "/emulador/play",
         "/emulador/play.js",
+        "/emulador/score.js",
     ):
         response = client.get(url)
         assert response.headers["X-Content-Type-Options"] == "nosniff", url

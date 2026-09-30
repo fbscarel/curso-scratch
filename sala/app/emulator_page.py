@@ -4,7 +4,8 @@ The emulator runs inside an iframe of its own, not inside the SPA: EmulatorJS
 takes over globals and the keyboard, and a page of its own is torn down when the
 kid leaves. The HTML is a tracked template (`app/emulator/play.html`) with the
 game's configuration injected as a JSON block, and everything the page does lives
-in the external `/emulador/play.js` — the page's CSP has no `'unsafe-inline'` for
+in the external scripts it loads — `/emulador/score.js` (the savestate decoder)
+and `/emulador/play.js` — because the page's CSP has no `'unsafe-inline'` for
 scripts, and `'unsafe-eval'` is there only because emulator.min.js runs
 `Function(...)`. Nothing in that policy points outside this laptop.
 
@@ -35,6 +36,7 @@ DATA_URL = f"{EMULADOR_PREFIX}/data/"
 ASSETS_DIR = Path(__file__).resolve().parent / "emulator"
 PLAY_HTML_FILENAME = "play.html"
 PLAY_JS_FILENAME = "play.js"
+SCORE_JS_FILENAME = "score.js"
 
 GAME_NOT_FOUND_MESSAGE = "Não encontrei esse jogo."
 MISSING_EMULATOR_MESSAGE = "Emulador não instalado: rode just sala-emulador"
@@ -92,6 +94,9 @@ def play_config(jogo: games.Jogo, *, error: str | None = None) -> dict:
         "pathtodata": DATA_URL,
         "defaultOptions": {"webgl2Enabled": "enabled"},
         "buttons": EJS_BUTTONS,
+        # Where the game keeps its score in the savestate, or null for a game
+        # that has no way of reporting one: `play.js` only follows the first.
+        "score": None if jogo.score is None else jogo.score.payload(),
     }
     if error is not None:
         config["error"] = error
@@ -159,6 +164,14 @@ def play() -> Response:
 @bp.get(f"{EMULADOR_PREFIX}/play.js")
 def play_js() -> Response:
     response = send_from_directory(ASSETS_DIR, PLAY_JS_FILENAME, mimetype="text/javascript")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.get(f"{EMULADOR_PREFIX}/score.js")
+def score_js() -> Response:
+    """The savestate decoder of `play.js`, kept apart so it is one small file."""
+    response = send_from_directory(ASSETS_DIR, SCORE_JS_FILENAME, mimetype="text/javascript")
     response.headers["Cache-Control"] = "no-store"
     return response
 

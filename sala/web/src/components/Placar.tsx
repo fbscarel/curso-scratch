@@ -132,8 +132,10 @@ export function Placar({
 
 				{game.type === "emulated" && (
 					<SelfReport
+						key={game.id}
 						gameId={game.id}
 						student={student}
+						collapsed={game.autoScore}
 						onFiled={board.reload}
 					/>
 				)}
@@ -240,23 +242,48 @@ function PendingList({ pending }: { pending: Scoreboard["myPending"] }) {
 /**
  * SelfReport is the form a kid types a pontuação into.
  *
- * Only for a game that cannot report its own: an emulated game has no way to
- * tell the server what was scored, so the kid writes it down and the teacher
- * confirms it. Without a name picked there is nobody to file it for, so the form
- * is replaced by the way to pick one, and the way back is this same game.
+ * Only for an emulated game: it has no way of writing the number on the placar
+ * itself, so the kid writes it down and the teacher confirms it. Without a name
+ * picked there is nobody to file it for, so the form is replaced by the way to
+ * pick one, and the way back is this same game.
+ *
+ * For a game that reads its own score the form is the FALLBACK -- the reading
+ * can fail, and the kid has to be able to write the number down anyway -- so it
+ * is collapsed behind a button instead of sitting open under the placar.
  */
 function SelfReport({
 	gameId,
 	student,
+	collapsed,
 	onFiled,
 }: {
 	gameId: string;
 	student: Student | null;
+	collapsed: boolean;
 	onFiled: () => void;
 }) {
 	const action = useAction();
 	const [value, setValue] = useState("");
 	const [filed, setFiled] = useState<number | null>(null);
+	const [open, setOpen] = useState(!collapsed);
+
+	if (!open) {
+		return (
+			<div className="space-y-2">
+				<Button
+					type="button"
+					variant="outline"
+					onClick={() => setOpen(true)}
+					className="h-12 w-full rounded-2xl font-bold"
+				>
+					Anotar à mão
+				</Button>
+				<p className="text-muted-foreground">
+					A leitura automática pode falhar; aqui você anota a sua pontuação.
+				</p>
+			</div>
+		);
+	}
 
 	if (student === null) {
 		return (

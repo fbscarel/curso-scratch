@@ -32,6 +32,7 @@ const ENDURO: Game = {
 	maker: "Activision",
 	about: "Corrida de resistência: ultrapasse os carros dia e noite.",
 	controls: [{ keys: ["←", "→"], action: "virar" }],
+	autoScore: true,
 };
 
 /** Pong is ours, so it reports its own pontuações and has no form to type one in. */
@@ -44,6 +45,20 @@ const PONG: Game = {
 	maker: "Atari",
 	about: "Rebata a bola com a sua raquete.",
 	controls: [{ keys: ["↑", "↓"], action: "mover a raquete" }],
+	autoScore: true,
+};
+
+/** An emulated game with no score block: the form is the only way to score. */
+const GALAGA: Game = {
+	id: "galaga",
+	title: "Galaga",
+	type: "emulated",
+	system: "arcade",
+	year: 1981,
+	maker: "Namco",
+	about: "Pilote a nave e destrua as ondas de alienígenas.",
+	controls: [{ keys: ["←", "→"], action: "mover" }],
+	autoScore: false,
 };
 
 const ANA: Student = { id: 1, name: "Ana Teste" };
@@ -152,10 +167,15 @@ describe("the placar", () => {
 
 	it("files a self-reported pontuação and lists it as waiting for the teacher", async () => {
 		render(<Placar game={ENDURO} student={ANA} refreshKey={0} />);
+		// Enduro reads its own score, so the form is the fallback: it opens
+		// from the button.
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Anotar à mão" }),
+		);
 		const field = await screen.findByLabelText("Anotar minha pontuação");
 
 		fireEvent.change(field, { target: { value: "250" } });
-		fireEvent.click(screen.getByRole("button", { name: /Anotar/ }));
+		fireEvent.click(screen.getByRole("button", { name: /^Anotar$/ }));
 
 		await waitFor(() =>
 			expect(posted).toEqual([
@@ -189,14 +209,32 @@ describe("the placar", () => {
 		expect(screen.queryByLabelText("Anotar minha pontuação")).toBeNull();
 	});
 
+	it("keeps the form behind a button for a game that reads its own score", async () => {
+		render(<Placar game={ENDURO} student={ANA} refreshKey={0} />);
+
+		// The automatic reading can fail, so the form stays -- but it does not
+		// sit open under a score the game is already reporting.
+		await screen.findByText(/Recorde da turma/);
+		expect(screen.queryByLabelText("Anotar minha pontuação")).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "Anotar à mão" }));
+		expect(await screen.findByLabelText("Anotar minha pontuação")).toBeTruthy();
+	});
+
+	it("shows the form open for an emulated game with no automatic score", async () => {
+		render(<Placar game={GALAGA} student={ANA} refreshKey={0} />);
+
+		expect(await screen.findByLabelText("Anotar minha pontuação")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Anotar à mão" })).toBeNull();
+	});
+
 	it("asks for a name before offering the form, since a pontuação is filed under one", async () => {
-		render(<Placar game={ENDURO} student={null} refreshKey={0} />);
+		render(<Placar game={GALAGA} student={null} refreshKey={0} />);
 
 		await screen.findByText(/Recorde da turma/);
 		expect(screen.queryByLabelText("Anotar minha pontuação")).toBeNull();
 		const link = screen.getByRole("link", { name: "Escolha o seu nome" });
 		expect(link.getAttribute("href")).toBe(
-			`/quem-sou-eu?next=${encodeURIComponent("/jogos/enduro")}`,
+			`/quem-sou-eu?next=${encodeURIComponent("/jogos/galaga")}`,
 		);
 	});
 

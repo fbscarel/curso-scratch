@@ -169,6 +169,12 @@ export interface GameControl {
  * `system` is the console, and it is `null` for a game of our own: a builtin
  * entry never ran on a console, so a screen that printed a console badge for it
  * would be inventing one. `type` is what says which kind of game this is.
+ *
+ * `autoScore` says whether the game reports its own pontuação: true for our own
+ * games and for the emulated ones whose catalogue entry says where the score
+ * lives in the core's memory, false for an emulated game whose number can only
+ * be written down by hand. The screen reads it to choose between the live score
+ * and the form.
  */
 export interface Game {
 	id: string;
@@ -179,6 +185,7 @@ export interface Game {
 	maker: string;
 	about: string;
 	controls: GameControl[];
+	autoScore: boolean;
 }
 
 /**

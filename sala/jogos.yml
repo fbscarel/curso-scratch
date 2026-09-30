@@ -9,6 +9,11 @@
 # A `builtin` jogo has no `system`, `core` or `rom`: it is our own page (Pong),
 # and its `controls` are the keys that page listens to.
 #
+# `score` tells the game page where to read the score inside the emulator's
+# savestate: the packed-BCD bytes, most significant first, a multiplier for
+# the digits the game does not store, and the byte that says the match has
+# started. Only emulated games can have one.
+#
 # This file is read and checked when the server starts: an error here shows up
 # in Portuguese naming the file and the entry, and the server does not start.
 
@@ -28,6 +33,13 @@
   system: atari2600
   core: stella2014
   rom: "atari2600/Enduro (USA).zip"
+  # The 6-digit odometer is little endian in RAM ($A8..$AA, i.e. state
+  # $A4..$A6, least significant first); $90 is 0x00 on the attract/title
+  # screen and 0xff once the race runs.
+  score:
+    bcd: [0xA6, 0xA5, 0xA4]
+    multiplier: 1
+    in_game: {offset: 0x90, is: 0xFF}
   year: 1983
   maker: Activision
   about: "Corrida de resistência: ultrapasse os carros e aguente o dia e a noite."
@@ -93,6 +105,14 @@
   system: arcade
   core: mame2003_plus
   rom: "arcade/frogger.zip"
+  # The 1-UP score keeps four BCD digits, the tens and up: the units cell of the
+  # HUD is a constant 0 with no RAM source, so what the game stores is a tenth of
+  # the score. $454C is the PLAY_FLAG: 0 in the attract demo, which writes a
+  # score into the same bytes.
+  score:
+    bcd: [0x453C, 0x453B]
+    multiplier: 10
+    in_game: {offset: 0x454C, not: 0x00}
   year: 1981
   maker: Konami
   about: "Ajude a rã a atravessar a rua e o rio sem ser atropelada."

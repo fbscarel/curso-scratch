@@ -96,6 +96,29 @@ def test_the_catalogue_defaults_to_the_tracked_file():
     assert games.catalogue_path() == Path(games.__file__).resolve().parents[1] / "jogos.yml"
 
 
+def test_the_tracked_enduro_reads_its_odometer():
+    # The hex offsets of the file are plain numbers once loaded.
+    assert games.by_id("enduro").score == games.ScoreBlock(
+        bcd=(0xA6, 0xA5, 0xA4),
+        multiplier=1,
+        in_game=games.InGame(offset=0x90, is_value=0xFF),
+    )
+
+
+def test_the_tracked_frogger_reads_its_score_and_its_play_flag():
+    assert games.by_id("frogger").score == games.ScoreBlock(
+        bcd=(0x453C, 0x453B),
+        multiplier=10,
+        in_game=games.InGame(offset=0x454C, not_value=0x00),
+    )
+
+
+def test_only_enduro_and_frogger_have_a_score_block():
+    with_score = [jogo.id for jogo in games.catalogue() if jogo.score is not None]
+
+    assert with_score == ["enduro", "frogger"]
+
+
 # --- validation ------------------------------------------------------------
 
 
@@ -187,6 +210,126 @@ def test_a_repeated_id_stops_the_catalogue(tmp_path):
     message = str(error.value)
     assert 'entrada 2 ("enduro")' in message
     assert "já apareceu" in message
+
+
+# --- the score block -------------------------------------------------------
+
+
+def test_a_score_block_is_only_for_an_emulated_game(tmp_path):
+    entry = {
+        "id": "pong",
+        "title": "Pong",
+        "type": "builtin",
+        "year": 1972,
+        "maker": "Atari",
+        "about": "Bate-bola.",
+        "controls": [{"keys": ["↑"], "action": "mover"}],
+        "score": {"bcd": [1], "multiplier": 1, "in_game": {"offset": 0, "is": 1}},
+    }
+
+    with pytest.raises(games.CatalogueError) as error:
+        load(tmp_path, [entry])
+
+    assert "score" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "score, expected",
+    [
+        ("x", "'score'"),
+        ({"bcd": []}, "bcd"),
+        ({"bcd": [1, 2, 3, 4, 5]}, "bcd"),
+        ({"bcd": [-1]}, "bcd"),
+        ({"bcd": [1.5]}, "bcd"),
+        ({"bcd": ["1"]}, "bcd"),
+        ({"bcd": [True]}, "bcd"),
+        ({"bcd": [1], "multiplier": 3}, "multiplier"),
+        ({"bcd": [1], "multiplier": True}, "multiplier"),
+        ({"bcd": [1], "multiplier": 1.0}, "multiplier"),
+        ({"bcd": [1], "multiplier": 1}, "in_game"),
+        ({"bcd": [1], "multiplier": 1, "in_game": "x"}, "in_game"),
+        ({"bcd": [1], "multiplier": 1, "in_game": {"offset": 0x90}}, "exatamente um"),
+        (
+            {"bcd": [1], "multiplier": 1, "in_game": {"offset": 0x90, "is": 1, "not": 0}},
+            "exatamente um",
+        ),
+        ({"bcd": [1], "multiplier": 1, "in_game": {"is": 1}}, "offset"),
+        ({"bcd": [1], "multiplier": 1, "in_game": {"offset": -1, "is": 1}}, "offset"),
+        ({"bcd": [1], "multiplier": 1, "in_game": {"offset": 0x90, "is": 256}}, "byte"),
+        ({"bcd": [1], "multiplier": 1, "in_game": {"offset": 0x90, "not": -1}}, "byte"),
+        ({"bcd": [1], "multiplier": 1, "in_game": {"offset": 0x90, "is": True}}, "byte"),
+    ],
+)
+def test_a_bad_score_block_names_the_file_and_the_entry(tmp_path, score, expected):
+    with pytest.raises(games.CatalogueError) as error:
+        load(tmp_path, [{**BASE, "score": score}])
+
+    message = str(error.value)
+    assert expected in message, message
+    assert str(tmp_path / "jogos.yml") in message
+    assert "entrada 1" in message
+
+
+def test_a_score_block_of_one_byte_is_enough(tmp_path):
+    jogo = load(
+        tmp_path,
+        [{**BASE, "score": {"bcd": [0x10], "multiplier": 100, "in_game": {"offset": 0, "not": 0}}}],
+    )[0]
+
+    assert jogo.score == games.ScoreBlock(
+        bcd=(0x10,), multiplier=100, in_game=games.InGame(offset=0, not_value=0)
+    )
+
+
+def test_a_game_without_a_score_block_has_none(tmp_path):
+    assert load(tmp_path, [BASE])[0].score is None
+
+
+@pytest.mark.parametrize(
+    "bcd, multiplier",
+    [
+        ([1, 2, 3], 100),
+        ([1, 2, 3, 4], 1),
+        ([1, 2, 3, 4], 100),
+    ],
+)
+def test_a_score_block_that_could_beat_the_server_cap_is_refused(tmp_path, bcd, multiplier):
+    # The widest number the bytes can hold, times the multiplier, is a pontuação
+    # the API refuses: a game with this block could only ever fail to save.
+    score = {"bcd": bcd, "multiplier": multiplier, "in_game": {"offset": 0, "not": 0}}
+
+    with pytest.raises(games.CatalogueError) as error:
+        load(tmp_path, [{**BASE, "score": score}])
+
+    message = str(error.value)
+    assert "acima do limite" in message, message
+    assert str(tmp_path / "jogos.yml") in message
+    assert "entrada 1" in message
+
+
+def test_a_score_block_that_reads_up_to_the_server_cap_is_accepted(tmp_path):
+    # Three bytes are six digits, so even the multiplier of 10 reads at most
+    # 9.999.990 -- inside the limit, and that is as far as a block may go.
+    score = {"bcd": [1, 2, 3], "multiplier": 10, "in_game": {"offset": 0, "not": 0}}
+
+    jogo = load(tmp_path, [{**BASE, "score": score}])[0]
+
+    assert jogo.score == games.ScoreBlock(
+        bcd=(1, 2, 3), multiplier=10, in_game=games.InGame(offset=0, not_value=0)
+    )
+
+
+def test_the_score_block_payload_uses_the_catalogue_keys():
+    assert games.by_id("enduro").score.payload() == {
+        "bcd": [0xA6, 0xA5, 0xA4],
+        "multiplier": 1,
+        "inGame": {"offset": 0x90, "is": 0xFF},
+    }
+    assert games.by_id("frogger").score.payload() == {
+        "bcd": [0x453C, 0x453B],
+        "multiplier": 10,
+        "inGame": {"offset": 0x454C, "not": 0x00},
+    }
 
 
 @pytest.mark.parametrize("body", ["", "jogos: 1", "[]", "- id: enduro\n  id: enduro\n"])
@@ -288,11 +431,14 @@ def test_a_builtin_game_has_no_rom_file(monkeypatch, tmp_path):
     assert games.rom_file(jogo) is None
 
 
-def test_only_our_own_page_reports_its_score_itself():
-    # The emulated games have no way of telling the server their score: what is
-    # left for them is the self-report the teacher approves.
+def test_only_the_games_that_can_report_their_score_do_it_themselves():
+    # Our own page counts the points; an emulated game can only do the same
+    # when the catalogue says where its score lives in the savestate.
     assert games.allows_auto_score(games.by_id("pong")) is True
-    assert games.allows_auto_score(games.by_id("enduro")) is False
+    assert games.allows_auto_score(games.by_id("enduro")) is True
+    assert games.allows_auto_score(games.by_id("frogger")) is True
+    assert games.allows_auto_score(games.by_id("space-invaders")) is False
+    assert games.allows_auto_score(games.by_id("sonic")) is False
 
 
 # --- playability and visibility --------------------------------------------
@@ -423,10 +569,27 @@ def test_choose_refuses_an_unknown_game_listing_the_ids(db):
 def test_the_public_payload_has_the_controls_of_the_game():
     payload = games.game_payload(games.by_id("frogger"))
 
-    assert set(payload) == {"id", "title", "type", "system", "year", "maker", "about", "controls"}
+    assert set(payload) == {
+        "id",
+        "title",
+        "type",
+        "system",
+        "year",
+        "maker",
+        "about",
+        "controls",
+        "autoScore",
+    }
     assert payload["system"] == "arcade"
     assert payload["year"] == 1981
     assert {"keys": ["v"], "action": "colocar a ficha (coin)"} in payload["controls"]
+
+
+def test_the_public_payload_says_when_a_game_scores_by_itself():
+    assert games.game_payload(games.by_id("pong"))["autoScore"] is True
+    assert games.game_payload(games.by_id("enduro"))["autoScore"] is True
+    assert games.game_payload(games.by_id("frogger"))["autoScore"] is True
+    assert games.game_payload(games.by_id("space-invaders"))["autoScore"] is False
 
 
 def test_the_admin_payload_says_what_is_missing(install_games):

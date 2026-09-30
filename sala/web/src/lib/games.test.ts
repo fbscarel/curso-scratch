@@ -97,10 +97,10 @@ describe("readEmulatorMessage", () => {
 	});
 
 	it("ignores what it does not know instead of calling it an error", () => {
-		// The page may grow new messages later (the scores). A listener that
-		// turned each unknown one into a red box would make that impossible.
+		// The page may grow new messages later. A listener that turned each
+		// unknown one into a red box would make that impossible.
 		const unknown: unknown[] = [
-			{ type: "sala:score", score: 10 },
+			{ type: "sala:future" },
 			{},
 			"sala:started",
 			null,
@@ -119,6 +119,73 @@ describe("readEmulatorMessage", () => {
 				ORIGIN,
 			),
 		).toEqual({ type: "sala:ready" });
+	});
+
+	it("reads a score sample, with a number or with none", () => {
+		expect(
+			readEmulatorMessage(
+				messageFrom({ type: "sala:score", inGame: true, score: 30 }),
+				FRAME,
+				ORIGIN,
+			),
+		).toEqual({ type: "sala:score", inGame: true, score: 30 });
+		expect(
+			readEmulatorMessage(
+				messageFrom({ type: "sala:score", inGame: true, score: 0 }),
+				FRAME,
+				ORIGIN,
+			),
+		).toEqual({ type: "sala:score", inGame: true, score: 0 });
+		// A sample that could not be read is a real answer: the match flag is
+		// kept and the number is null, which is not a score of zero.
+		expect(
+			readEmulatorMessage(
+				messageFrom({ type: "sala:score", inGame: false, score: null }),
+				FRAME,
+				ORIGIN,
+			),
+		).toEqual({ type: "sala:score", inGame: false, score: null });
+	});
+
+	it("ignores a score sample that is not the shape the page promised", () => {
+		const bad: unknown[] = [
+			// The match flag is what decides whether a score means anything, so a
+			// sample without one cannot be acted on.
+			{ type: "sala:score", score: 10 },
+			{ type: "sala:score", inGame: "yes", score: 10 },
+			{ type: "sala:score", inGame: true },
+			// A count of points is a whole number from zero: anything else is a
+			// decoding the screen must not turn into a placar row.
+			{ type: "sala:score", inGame: true, score: -1 },
+			{ type: "sala:score", inGame: true, score: 1.5 },
+			{ type: "sala:score", inGame: true, score: "30" },
+		];
+		for (const data of bad) {
+			expect(readEmulatorMessage(messageFrom(data), FRAME, ORIGIN)).toBeNull();
+		}
+	});
+
+	it("ignores a score sample from another origin, or another frame", () => {
+		expect(
+			readEmulatorMessage(
+				messageFrom(
+					{ type: "sala:score", inGame: true, score: 30 },
+					{ origin: "https://evil.example" },
+				),
+				FRAME,
+				ORIGIN,
+			),
+		).toBeNull();
+		expect(
+			readEmulatorMessage(
+				messageFrom(
+					{ type: "sala:score", inGame: true, score: 30 },
+					{ source: OTHER_FRAME },
+				),
+				FRAME,
+				ORIGIN,
+			),
+		).toBeNull();
 	});
 
 	it("still shows something when the error carries no readable message", () => {
