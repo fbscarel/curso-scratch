@@ -9,5 +9,4 @@ profile/airootfs/etc/firefox/policies/
 profile/airootfs/etc/skel/.config/mozilla/
 profile/airootfs/etc/skel/Aulas/
 profile/airootfs/root/*.hash
-profile/airootfs/etc/scratchlab/
 secrets/

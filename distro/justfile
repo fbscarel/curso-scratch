@@ -44,7 +44,7 @@ aulas:
 # Wi-Fi networks: secrets/wifi.txt (gitignored), "SSID<TAB>password" per line.
 build: repo addons filter firefox-profile aulas
     scripts/stage-secrets.sh
-    trap 'rm -rf profile/airootfs/root/*.hash profile/airootfs/etc/NetworkManager/system-connections profile/airootfs/etc/scratchlab' EXIT; \
+    trap 'rm -rf profile/airootfs/root/*.hash profile/airootfs/etc/NetworkManager/system-connections' EXIT; \
       sed "s|@REPO@|{{justfile_directory()}}/repo|" profile/pacman.conf.in > profile/pacman.conf; \
       sudo rm -rf work; \
       sudo mkarchiso -v -r -w work -o out profile
@@ -74,12 +74,6 @@ flash dev:
     read -rp "ERASE {{dev}} and write the ISO? [digite SIM] " ok; [ "$ok" = SIM ]
     sudo dd if="$(ls -t out/*.iso | head -n1)" of={{dev}} bs=4M conv=fsync oflag=direct status=progress
     sync
-
-# Send a test project to the "Entregar trabalho" web app (lands in Aula 999 / Teste).
-entrega-teste:
-    python3 profile/airootfs/usr/local/bin/entregar-trabalho \
-      --url "$(grep -v '^#' secrets/entrega-url.txt | tr -d '[:space:]')" \
-      --nome Teste --aula 999 ../aulas/projetos/Aula1-TreinoDoMouse.sb3
 
 # Flash several sticks in a row: plug, confirm device + size, write, verify, pull, repeat.
 flash-loop:

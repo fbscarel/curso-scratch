@@ -7,8 +7,6 @@ RAM e dá boot pelo pendrive nos computadores do laboratório. Ele traz:
 - **TurboWarp Desktop** — o Scratch que funciona offline, já com o gato e o som Miau no projeto novo;
 - **Firefox em português**, com restrições para a aula;
 - teclado ABNT2 (padrão brasileiro);
-- botão **Entregar trabalho**, que envia o projeto da criança para a pasta do professor no Google
-  Drive (veja [`entrega/README.md`](../entrega/README.md));
 - nada é salvo no computador: ao desligar, tudo volta ao ponto de partida.
 
 O filtro de sites usado no laboratório é configurado localmente (distro/filter/, fora do repositório)
@@ -29,17 +27,14 @@ cd distro && just build
 
 O build pergunta **duas vezes** a senha do professor e a do root (ou use
 `PROF_PASS='…' ROOT_PASS='…' just build`). As redes Wi-Fi salvas ficam em `secrets/wifi.txt`
-(esse arquivo **não** vai para o git), uma rede por linha, no formato `SSID<TAB>senha`. O endereço
-do botão **Entregar trabalho** fica em `secrets/entrega-url.txt` (como obter:
-[`entrega/README.md`](../entrega/README.md)); sem ele o botão avisa que o envio não está
-configurado. `just entrega-teste` confere se o endereço funciona.
+(esse arquivo **não** vai para o git), uma rede por linha, no formato `SSID<TAB>senha`.
 
 Se a pasta `distro/filter/` não existir, o build para com uma mensagem explicando. Para gerar uma
 imagem sem filtro de sites, use `NO_FILTER=1 just build` — vale mesmo que `distro/filter/` exista.
 A ISO sai em `out/`.
 
-> **Nunca publique a ISO gerada.** Ela contém a senha do Wi-Fi, as senhas (em hash) do professor
-> e do root e o endereço de envio dos trabalhos.
+> **Nunca publique a ISO gerada.** Ela contém a senha do Wi-Fi e as senhas (em hash) do professor
+> e do root.
 
 ## Testar e gravar os pendrives
 
@@ -75,4 +70,3 @@ copia o sistema para a RAM: quando a área de trabalho azul aparecer, o pendrive
 | Contas e serviços | `profile/airootfs/usr/local/sbin/lab-setup` |
 | TurboWarp Desktop | `pkgbuilds/turbowarp-desktop-lab/` |
 | Projetos das aulas | copiados de `aulas/projetos/` para `~/Aulas` a cada build |
-| Botão Entregar trabalho | `profile/airootfs/usr/local/bin/entregar-trabalho` (o servidor está em `../entrega/`) |
