@@ -25,6 +25,7 @@ const CATALOGUE: AdminGame[] = [
 		maker: "Activision",
 		playable: true,
 		missing: null,
+		cover: true,
 	},
 	{
 		id: "super-mario-world",
@@ -36,6 +37,7 @@ const CATALOGUE: AdminGame[] = [
 		maker: "Nintendo",
 		playable: false,
 		missing: "rom",
+		cover: false,
 	},
 	{
 		id: "sonic-the-hedgehog",
@@ -47,6 +49,7 @@ const CATALOGUE: AdminGame[] = [
 		maker: "Sega",
 		playable: false,
 		missing: "core",
+		cover: false,
 	},
 ];
 
@@ -215,6 +218,18 @@ describe("the admin Jogos screen", () => {
 		);
 		expect(select.textContent).not.toContain("Escolha um jogo");
 		expect(screen.getByText(/Super Mario World está sem a ROM\./)).toBeTruthy();
+	});
+
+	it("shows a small cover for the games that have one, and says when there is none", async () => {
+		render(<GamesAdmin />);
+
+		expect(await screen.findByText("Pronto")).toBeTruthy();
+
+		const shown = [...document.querySelectorAll("table img")].map((image) =>
+			image.getAttribute("src"),
+		);
+		expect(shown).toEqual(["/api/games/enduro/capa"]);
+		expect(screen.getAllByText("sem capa")).toHaveLength(2);
 	});
 
 	it("shows why an entry cannot be played, for every entry", async () => {

@@ -1,4 +1,6 @@
-import type { GameSystem } from "@/lib/types";
+import pongCover from "@/assets/pong-capa.png";
+import { coverUrl } from "@/lib/api";
+import type { Game, GameSystem } from "@/lib/types";
 
 /**
  * What a kid calls each console, in pt-BR.
@@ -29,6 +31,54 @@ export const BUILTIN_LABEL = "Jogo da sala";
 /** systemLabel names a game's console, or says that it has none. */
 export function systemLabel(system: GameSystem | null): string {
 	return system === null ? BUILTIN_LABEL : SYSTEM_LABELS[system];
+}
+
+/**
+ * Whether the SPA is running on its own, without a lab server (`VITE_MOCK=1`).
+ *
+ * Development only: a production build folds this to `false`, and the stand-in
+ * below with it.
+ */
+const MOCK_MODE = import.meta.env.DEV && import.meta.env.VITE_MOCK === "1";
+
+/**
+ * mockCover is what the development mock shows where a cover image would be.
+ *
+ * There is no lab server in mock mode and no image for a `<img>` to load -- a
+ * request for one would be answered with the SPA's own index.html, which is not
+ * a picture -- so the grid would only ever show icons and the cover layout could
+ * not be looked at. Development only.
+ */
+function mockCover(title: string): string {
+	const safe = title
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+	const svg =
+		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200">' +
+		'<rect width="300" height="200" fill="#1b1b2f"/>' +
+		`<text x="150" y="108" fill="#ffd166" font-family="sans-serif" font-size="26"` +
+		` font-weight="bold" text-anchor="middle">${safe}</text></svg>`;
+	return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * coverSrc is where a game's cover image is, or `null` when it has none.
+ *
+ * Two sources, and the kind of the game is what picks between them: our own
+ * game's cover is a screenshot that travels inside this bundle, and an emulated
+ * game's is served by the lab server at the route the API builds.
+ *
+ * The flag on the game is what says whether there is an image at all: the covers
+ * are downloaded once per laptop (`just sala-capas`) and are in no repository, so
+ * a laptop that never ran it has boxes to show only because of the icons.
+ */
+export function coverSrc(
+	game: Pick<Game, "id" | "title" | "type" | "cover">,
+): string | null {
+	if (game.type === "builtin") return pongCover;
+	if (!game.cover) return null;
+	return MOCK_MODE ? mockCover(game.title) : coverUrl(game.id);
 }
 
 /**

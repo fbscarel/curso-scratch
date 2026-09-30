@@ -118,6 +118,9 @@ def test_a_builtin_game_is_listed_but_has_no_rom(client, monkeypatch, set_game_m
             "about": "Bate-bola.",
             "controls": [{"keys": ["↑", "↓"], "action": "mover"}],
             "autoScore": True,
+            # A game of our own ships its cover inside the SPA, so it always has
+            # one, even on a laptop where no cover was ever downloaded.
+            "cover": True,
         }
     ]
     assert client.get(f"{API}/pong/rom").status_code == 404
@@ -270,6 +273,118 @@ def test_a_traversal_in_the_id_is_404(client, install_games, set_game_mode, url)
 
     assert response.status_code == 404, url
     assert b"root:" not in response.data
+
+
+# --- the cover -------------------------------------------------------------
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"capa de mentira"
+JPEG = b"\xff\xd8\xff" + b"capa de mentira"
+
+
+def write_cover(data_dir, game_id: str, data: bytes = PNG, extension: str = "png"):
+    """Put a cover file where the server looks for it, as the recipe would."""
+    directory = data_dir / "capas"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{game_id}.{extension}"
+    path.write_bytes(data)
+    return path
+
+
+def test_the_cover_of_a_visible_game_comes_as_an_image(client, data_dir, install_games, set_game_mode):
+    install_games("enduro")
+    set_game_mode(active="enduro")
+    write_cover(data_dir, "enduro")
+
+    response = client.get(f"{API}/enduro/capa")
+
+    assert response.status_code == 200
+    assert response.data == PNG
+    assert response.mimetype == "image/png"
+    assert response.headers["Cache-Control"] == "public, max-age=86400"
+
+
+def test_a_cover_in_another_format_is_served_with_its_own_type(client, data_dir, install_games, set_game_mode):
+    # The teacher's own image wins over a downloaded one, and it can be a JPEG.
+    install_games("enduro")
+    set_game_mode(active="enduro")
+    write_cover(data_dir, "enduro", JPEG, "jpg")
+
+    response = client.get(f"{API}/enduro/capa")
+
+    assert response.status_code == 200
+    assert response.data == JPEG and response.mimetype == "image/jpeg"
+
+
+def test_the_cover_of_a_game_that_is_not_visible_is_404(client, data_dir, install_games, set_game_mode):
+    install_games()
+    set_game_mode(active="enduro")
+    write_cover(data_dir, "frogger")
+
+    assert client.get(f"{API}/frogger/capa").status_code == 404
+    assert client.get(f"{API}/enduro/capa").status_code == 404  # no file for it either
+
+
+def test_a_game_without_a_cover_file_is_404(client, install_games, set_game_mode):
+    install_games("enduro")
+    set_game_mode(active="enduro")
+
+    response = client.get(f"{API}/enduro/capa")
+
+    assert response.status_code == 404
+    assert response.get_json() == {"error": games.NOT_FOUND_MESSAGE}
+
+
+def test_the_cover_of_an_unknown_game_is_404(client, data_dir, install_games, set_game_mode):
+    install_games()
+    set_game_mode(free=True)
+    write_cover(data_dir, "nao-existe")
+
+    assert client.get(f"{API}/nao-existe/capa").status_code == 404
+
+
+def test_the_cover_needs_no_login(client, data_dir, install_games, set_game_mode):
+    install_games("enduro")
+    set_game_mode(active="enduro")
+    write_cover(data_dir, "enduro")
+
+    assert client.get(f"{API}/enduro/capa").status_code == 200
+
+
+def test_the_cover_of_a_game_of_our_own_is_its_own_file_in_the_spa(client, set_game_mode):
+    # Pong's cover is a screenshot that travels inside the SPA: the payload says
+    # the game has one, and this route has nothing to hand out for it.
+    set_game_mode(active="pong")
+
+    assert client.get(f"{API}/pong").get_json()["cover"] is True
+    assert client.get(f"{API}/pong/capa").status_code == 404
+
+
+def test_the_public_payload_says_which_games_have_a_cover(client, data_dir, install_games, set_game_mode):
+    install_games()
+    set_game_mode(free=True)
+    write_cover(data_dir, "enduro")
+
+    by_id = {game["id"]: game for game in client.get(API).get_json()["games"]}
+
+    assert by_id["enduro"]["cover"] is True
+    assert by_id["frogger"]["cover"] is False
+    assert by_id["pong"]["cover"] is True
+
+
+def test_the_admin_list_says_which_games_have_a_cover(
+    admin_client, admin_api, data_dir, install_games
+):
+    install_games()
+    write_cover(data_dir, "enduro")
+
+    by_id = {
+        game["id"]: game
+        for game in admin_client.get(f"{admin_api}/games").get_json()["games"]
+    }
+
+    assert by_id["enduro"]["cover"] is True
+    assert by_id["sonic"]["cover"] is False
+    assert by_id["pong"]["cover"] is True
 
 
 # --- the teacher's list and switch -----------------------------------------

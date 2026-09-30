@@ -1,9 +1,10 @@
 """The game catalogue (`jogos.yml`), the active game and free mode.
 
-`jogos.yml` is tracked and holds ROM *names* only — never a ROM. It is read and
-validated on start: an entry with a bad id, a ROM path that could leave the ROM
-directory, an unknown system, a core the emulator manifest does not cover or a
-`score` block that does not describe a savestate stops the server with a
+`jogos.yml` is tracked and holds ROM *names* only — never a ROM, and never an
+image (`capa` is the name a cover is downloaded under, not a picture). It is read
+and validated on start: an entry with a bad id, a ROM path that could leave the
+ROM directory, an unknown system, a core the emulator manifest does not cover or
+a `score` block that does not describe a savestate stops the server with a
 Brazilian Portuguese message naming the file and the entry.
 
 Two settings decide what a kid sees: `active_game` (single-game mode) and
@@ -134,7 +135,12 @@ class ScoreBlock:
 
 @dataclass(frozen=True)
 class Jogo:
-    """One catalogue entry. `system`, `core` and `rom` are None for builtin games."""
+    """One catalogue entry. `system`, `core` and `rom` are None for builtin games.
+
+    `capa` overrides the name a cover is downloaded under (`covers.py`): an
+    emulated game is named after its ROM file, and an arcade set name is not
+    what is written on the cabinet.
+    """
 
     id: str
     title: str
@@ -147,6 +153,7 @@ class Jogo:
     about: str
     controls: tuple[Control, ...]
     score: ScoreBlock | None = None
+    capa: str | None = None
 
 
 def catalogue_path() -> Path:
@@ -237,7 +244,9 @@ def _parse_entry(where: str, entry: dict) -> Jogo:
     controls = _controls(where, entry)
 
     if kind == TYPE_BUILTIN:
-        extra = [key for key in ("system", "core", "rom", "score") if entry.get(key) is not None]
+        extra = [
+            key for key in ("system", "core", "rom", "score", "capa") if entry.get(key) is not None
+        ]
         if extra:
             raise CatalogueError(
                 f"{where}: um jogo 'builtin' não tem {', '.join(extra)} (ele é a nossa página)."
@@ -295,7 +304,28 @@ def _parse_entry(where: str, entry: dict) -> Jogo:
         about=about,
         controls=controls,
         score=_score_block(where, entry),
+        capa=_capa(where, entry),
     )
+
+
+def _capa(where: str, entry: dict) -> str | None:
+    """The optional `capa`: the name a cover is downloaded under.
+
+    It is only a name, and the check is only that it is one: the download builds
+    a URL out of it, and an entry that named nothing would download the boxarts
+    page itself.
+    """
+    raw = entry.get("capa")
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise CatalogueError(
+            f"{where}: 'capa' precisa ser o nome da capa no libretro-thumbnails (texto)."
+        )
+    name = raw.strip()
+    if any(ord(character) < 32 or ord(character) == 127 for character in name):
+        raise CatalogueError(f"{where}: 'capa' tem um caractere de controle: {name!r}.")
+    return name
 
 
 def _controls(where: str, entry: dict) -> tuple[Control, ...]:
@@ -530,8 +560,13 @@ def not_ready_message(jogo: Jogo) -> str:
 # --- payloads --------------------------------------------------------------
 
 
-def game_payload(jogo: Jogo) -> dict:
-    """The public shape of a game (what a kid's screen shows)."""
+def game_payload(jogo: Jogo, *, cover: bool) -> dict:
+    """The public shape of a game (what a kid's screen shows).
+
+    `cover` says whether there is a cover image to show for it; the image itself
+    is a route of its own (`/api/games/<id>/capa`), and the caller is the one
+    that knows the data directory the covers live in.
+    """
     return {
         "id": jogo.id,
         "title": jogo.title,
@@ -542,10 +577,11 @@ def game_payload(jogo: Jogo) -> dict:
         "about": jogo.about,
         "controls": [{"keys": list(control.keys), "action": control.action} for control in jogo.controls],
         "autoScore": allows_auto_score(jogo),
+        "cover": cover,
     }
 
 
-def admin_payload(jogo: Jogo) -> dict:
+def admin_payload(jogo: Jogo, *, cover: bool) -> dict:
     """The teacher's shape: the technical bits plus what is missing."""
     return {
         "id": jogo.id,
@@ -557,6 +593,7 @@ def admin_payload(jogo: Jogo) -> dict:
         "maker": jogo.maker,
         "playable": playable(jogo),
         "missing": missing_kind(jogo),
+        "cover": cover,
     }
 
 

@@ -30,6 +30,7 @@ const GAMES: AdminGame[] = [
 		maker: "Atari",
 		playable: true,
 		missing: null,
+		cover: true,
 	},
 	{
 		id: "enduro",
@@ -41,6 +42,7 @@ const GAMES: AdminGame[] = [
 		maker: "Activision",
 		playable: true,
 		missing: null,
+		cover: false,
 	},
 ];
 

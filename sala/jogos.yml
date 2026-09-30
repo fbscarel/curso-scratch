@@ -14,6 +14,11 @@
 # the digits the game does not store, and the byte that says the match has
 # started. Only emulated games can have one.
 #
+# `capa` is the name of the game's cover at libretro-thumbnails, for the games
+# whose ROM file name is not what is written on the box -- the arcade sets, whose
+# file is named after the MAME set. Without it, the cover is looked up by the ROM
+# file name. `just sala-capas` downloads the covers; no image is tracked here.
+#
 # This file is read and checked when the server starts: an error here shows up
 # in Portuguese naming the file and the entry, and the server does not start.
 
@@ -105,6 +110,7 @@
   system: arcade
   core: mame2003_plus
   rom: "arcade/frogger.zip"
+  capa: "Frogger"
   # The 1-UP score keeps four BCD digits, the tens and up: the units cell of the
   # HUD is a constant 0 with no RAM source, so what the game stores is a tenth of
   # the score. $454C is the PLAY_FLAG: 0 in the attract demo, which writes a
@@ -127,6 +133,7 @@
   system: arcade
   core: mame2003_plus
   rom: "arcade/galaga.zip"
+  capa: "Galaga (Namco rev. B)"
   year: 1981
   maker: Namco
   about: "Nave espacial: derrube as naves inimigas e resgate a sua nave capturada."
@@ -142,6 +149,7 @@
   system: arcade
   core: mame2003_plus
   rom: "arcade/mspacman.zip"
+  capa: "Ms. Pac-Man"
   year: 1982
   maker: Midway
   about: "Coma todas as pastilhas do labirinto fugindo dos fantasmas."
@@ -156,6 +164,7 @@
   system: arcade
   core: mame2003_plus
   rom: "arcade/dkong.zip"
+  capa: "Donkey Kong (US set 1)"
   year: 1981
   maker: Nintendo
   about: "Suba as escadas, desvie dos barris e salve a moça do Kong."

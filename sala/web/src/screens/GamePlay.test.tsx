@@ -60,6 +60,7 @@ const ENDURO: Game = {
 	about: "Corrida de resistência: ultrapasse os carros dia e noite.",
 	controls: [{ keys: ["←", "→"], action: "virar" }],
 	autoScore: true,
+	cover: true,
 };
 
 const PONG: Game = {
@@ -72,6 +73,7 @@ const PONG: Game = {
 	about: "Rebata a bola com a sua raquete.",
 	controls: [{ keys: ["↑", "↓"], action: "mover a raquete" }],
 	autoScore: true,
+	cover: true,
 };
 
 /** An emulated game whose catalogue entry has no score block: nothing to read. */
@@ -85,6 +87,7 @@ const GALAGA: Game = {
 	about: "Pilote a nave e destrua as ondas de alienígenas.",
 	controls: [{ keys: ["←", "→"], action: "mover" }],
 	autoScore: false,
+	cover: false,
 };
 
 const ANA: Student = { id: 1, name: "Ana Teste" };
@@ -172,6 +175,24 @@ describe("the game page", () => {
 			return frame;
 		});
 	}
+
+	it("shows the cover of the game in the panel", async () => {
+		renderGame("enduro");
+
+		expect(await screen.findByRole("heading", { name: "Enduro" })).toBeTruthy();
+		expect(document.querySelector("aside img")?.getAttribute("src")).toBe(
+			"/api/games/enduro/capa",
+		);
+	});
+
+	it("leaves the panel without a picture for a game that has no cover", async () => {
+		// The covers are downloaded once per laptop and are in no repository, so
+		// a game without one is a normal thing to find.
+		renderGame("galaga");
+
+		expect(await screen.findByRole("heading", { name: "Galaga" })).toBeTruthy();
+		expect(document.querySelector("aside img")).toBeNull();
+	});
 
 	it("embeds the emulator page and says what it is doing until the game boots", async () => {
 		renderGame("enduro");

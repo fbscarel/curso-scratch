@@ -163,6 +163,7 @@ def test_every_response_refuses_to_be_sniffed(
         f"{admin_api}/session",
         f"{admin_api}/uploads",
         f"/api/uploads/{upload_id}/download",
+        "/api/games/enduro/capa",
         "/emulador/play",
         "/emulador/play.js",
         "/emulador/score.js",

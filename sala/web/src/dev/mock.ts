@@ -12,7 +12,7 @@
  * forgiving than the server is worse than no mock, because a screen developed
  * against it breaks on the day the real server arrives.
  *
- * Three deliberate differences from the server:
+ * Four deliberate differences from the server:
  *
  *  - The admin session starts SIGNED IN, so an admin screen can be opened
  *    directly. "Sair" and a wrong password still exercise the login card.
@@ -22,6 +22,9 @@
  *    than requests the SPA makes, so the mock cannot intercept them; in mock
  *    mode they land on Vite's fallback. Everything the SPA itself requests --
  *    including the multipart upload, through XMLHttpRequest -- is here.
+ *  - There is no cover IMAGE to serve either, and an <img> is not a request the
+ *    mock sees at all: the SPA draws a stand-in with the game's name on it
+ *    (lib/games.ts), and the flag below says which games have one.
  */
 
 export const MOCK_MARKER = "__sala_dev_mock__";
@@ -82,6 +85,8 @@ interface MockGame {
 	controls: { keys: string[]; action: string }[];
 	/** Whether the game reports its own pontuação (our own, or a score block). */
 	autoScore: boolean;
+	/** Whether the laptop has a cover image for this game (`just sala-capas`). */
+	cover: boolean;
 	playable: boolean;
 	missing: "rom" | "core" | null;
 }
@@ -114,6 +119,7 @@ const CATALOGUE: MockGame[] = [
 		autoScore: true,
 		playable: true,
 		missing: null,
+		cover: true,
 	},
 	{
 		id: "space-invaders",
@@ -133,6 +139,7 @@ const CATALOGUE: MockGame[] = [
 		autoScore: false,
 		playable: true,
 		missing: null,
+		cover: true,
 	},
 	{
 		id: "pitfall",
@@ -150,6 +157,7 @@ const CATALOGUE: MockGame[] = [
 		autoScore: false,
 		playable: true,
 		missing: null,
+		cover: false,
 	},
 	{
 		id: "frogger",
@@ -168,6 +176,7 @@ const CATALOGUE: MockGame[] = [
 		autoScore: true,
 		playable: true,
 		missing: null,
+		cover: true,
 	},
 	{
 		id: "galaga",
@@ -187,6 +196,7 @@ const CATALOGUE: MockGame[] = [
 		autoScore: false,
 		playable: true,
 		missing: null,
+		cover: true,
 	},
 	{
 		id: "super-mario-bros",
@@ -206,6 +216,7 @@ const CATALOGUE: MockGame[] = [
 		autoScore: false,
 		playable: true,
 		missing: null,
+		cover: true,
 	},
 	{
 		id: "super-mario-world",
@@ -224,6 +235,7 @@ const CATALOGUE: MockGame[] = [
 		autoScore: false,
 		playable: false,
 		missing: "rom",
+		cover: true,
 	},
 	{
 		id: "sonic-the-hedgehog",
@@ -242,6 +254,7 @@ const CATALOGUE: MockGame[] = [
 		autoScore: false,
 		playable: false,
 		missing: "core",
+		cover: false,
 	},
 	{
 		// The one game of our own: no console, no emulator core and no ROM, so it
@@ -263,6 +276,7 @@ const CATALOGUE: MockGame[] = [
 		autoScore: true,
 		playable: true,
 		missing: null,
+		cover: true,
 	},
 ];
 
@@ -795,6 +809,7 @@ function publicGame(game: MockGame): unknown {
 		about: game.about,
 		controls: game.controls,
 		autoScore: game.autoScore,
+		cover: game.cover,
 	};
 }
 
@@ -810,6 +825,7 @@ function adminGameRow(game: MockGame): unknown {
 		maker: game.maker,
 		playable: game.playable,
 		missing: game.missing,
+		cover: game.cover,
 	};
 }
 

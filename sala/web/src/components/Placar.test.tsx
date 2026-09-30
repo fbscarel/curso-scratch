@@ -33,6 +33,7 @@ const ENDURO: Game = {
 	about: "Corrida de resistência: ultrapasse os carros dia e noite.",
 	controls: [{ keys: ["←", "→"], action: "virar" }],
 	autoScore: true,
+	cover: true,
 };
 
 /** Pong is ours, so it reports its own pontuações and has no form to type one in. */
@@ -46,6 +47,7 @@ const PONG: Game = {
 	about: "Rebata a bola com a sua raquete.",
 	controls: [{ keys: ["↑", "↓"], action: "mover a raquete" }],
 	autoScore: true,
+	cover: true,
 };
 
 /** An emulated game with no score block: the form is the only way to score. */
@@ -59,6 +61,7 @@ const GALAGA: Game = {
 	about: "Pilote a nave e destrua as ondas de alienígenas.",
 	controls: [{ keys: ["←", "→"], action: "mover" }],
 	autoScore: false,
+	cover: false,
 };
 
 const ANA: Student = { id: 1, name: "Ana Teste" };

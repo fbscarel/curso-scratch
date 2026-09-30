@@ -3,7 +3,7 @@ import { Empty, ErrorNotice, Link } from "@/components/Bits";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listGames } from "@/lib/api";
-import { systemLabel } from "@/lib/games";
+import { coverSrc, systemLabel } from "@/lib/games";
 import { SCRATCH, type ScratchColor } from "@/lib/palette";
 import { hrefFor } from "@/lib/router";
 import type { Game, GameSystem, GamesView, Student } from "@/lib/types";
@@ -148,21 +148,33 @@ export function Games({
  * screen's tiles: the picture, the title and the console badge are all part of
  * it. The console badge is the pt-BR name a kid recognises ("Fliperama"), and
  * the year is there because a 1983 game is a thing they ask about.
+ *
+ * The picture is the game's cover when the laptop has one, and the console's
+ * icon on the block colour of that console when it does not: box art has many
+ * aspect ratios, so it is contained rather than stretched, on the dark card the
+ * covers are drawn for.
  */
 function GameCard({ game }: { game: Game }) {
+	const cover = coverSrc(game);
 	return (
 		<Link
 			to={hrefFor({ name: "game", id: game.id })}
 			className="group flex animate-in flex-col gap-3 rounded-3xl border-2 border-border bg-card p-4 shadow-sm transition-all duration-300 fade-in slide-in-from-bottom-2 hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring"
 		>
-			<span
-				className={cn(
-					"grid aspect-[4/3] place-items-center rounded-2xl text-foreground shadow-inner",
-					SCRATCH[colorOf(game)],
-				)}
-			>
-				<Gamepad2 aria-hidden="true" className="size-14" />
-			</span>
+			{cover === null ? (
+				<span
+					className={cn(
+						"grid aspect-[4/3] place-items-center rounded-2xl text-foreground shadow-inner",
+						SCRATCH[colorOf(game)],
+					)}
+				>
+					<Gamepad2 aria-hidden="true" className="size-14" />
+				</span>
+			) : (
+				<span className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl bg-scratch-ink shadow-inner">
+					<img src={cover} alt="" className="h-full w-full object-contain" />
+				</span>
+			)}
 			<span className="font-extrabold text-2xl">{game.title}</span>
 			<span className="flex flex-wrap items-center gap-2">
 				<Badge variant="secondary">{systemLabel(game.system)}</Badge>

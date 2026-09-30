@@ -15,7 +15,7 @@ from datetime import date
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
-from . import auth, games, scores, uploads
+from . import auth, covers, games, scores, uploads
 from .db import SETTING_LESSON_OVERRIDE, delete_setting, get_db, set_setting
 from .lessons import current_lesson, get_lesson, lesson_override, today
 
@@ -488,10 +488,14 @@ def uploads_zip(number: int) -> Response:
 def games_list() -> Response:
     """The whole catalogue, with what is missing for each game to run."""
     connection = get_db()
+    data = current_app.config["SALA_CONFIG"].data_dir
     return jsonify(
         activeGame=games.active_game(connection),
         freeMode=games.free_mode(connection),
-        games=[games.admin_payload(jogo) for jogo in games.catalogue()],
+        games=[
+            games.admin_payload(jogo, cover=covers.cover_available(data, jogo))
+            for jogo in games.catalogue()
+        ],
     )
 
 

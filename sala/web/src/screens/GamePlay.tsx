@@ -16,7 +16,7 @@ import {
 } from "@/lib/api";
 import { celebrate } from "@/lib/celebrate";
 import { pontos } from "@/lib/format";
-import { readEmulatorMessage, systemLabel } from "@/lib/games";
+import { coverSrc, readEmulatorMessage, systemLabel } from "@/lib/games";
 import type { Game, Student } from "@/lib/types";
 import { useAction } from "@/lib/useAction";
 import { useAsync } from "@/lib/useAsync";
@@ -453,6 +453,7 @@ export function GamePlay({
 	if (!data) return null;
 
 	const builtin = data.type === "builtin";
+	const cover = coverSrc(data);
 
 	return (
 		<div className="space-y-6">
@@ -549,16 +550,25 @@ export function GamePlay({
 				</div>
 
 				<aside className="space-y-4">
-					<div>
-						<h1 className="font-extrabold text-4xl tracking-tight">
-							{data.title}
-						</h1>
-						<p className="mt-1 text-xl text-muted-foreground">
-							{data.year} · {data.maker}
-						</p>
-						<Badge variant="secondary" className="mt-2">
-							{systemLabel(data.system)}
-						</Badge>
+					<div className="flex items-start gap-4">
+						{cover !== null && (
+							<img
+								src={cover}
+								alt=""
+								className="h-28 w-24 shrink-0 rounded-2xl border-2 border-border bg-scratch-ink object-contain"
+							/>
+						)}
+						<div>
+							<h1 className="font-extrabold text-4xl tracking-tight">
+								{data.title}
+							</h1>
+							<p className="mt-1 text-xl text-muted-foreground">
+								{data.year} · {data.maker}
+							</p>
+							<Badge variant="secondary" className="mt-2">
+								{systemLabel(data.system)}
+							</Badge>
+						</div>
 					</div>
 
 					{/* The live score sits above the placar: while a match runs it is

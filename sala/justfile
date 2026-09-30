@@ -2,6 +2,7 @@
 # Uso: just              (lista as receitas)
 #      just sala-config  (define o caminho do professor e a senha)
 #      just sala-emulador (baixa o emulador: uma vez por máquina)
+#      just sala-capas   (baixa as capas dos jogos: uma vez por máquina)
 #      just sala         (compila o site e sobe o servidor para a turma)
 #      just test         (roda os testes do servidor)
 #      just check        (confere tudo: servidor e site)
@@ -45,6 +46,10 @@ sala *args: venv web-build
 # Baixa e confere (sha256) os arquivos do emulador em vendor/emulatorjs/data
 sala-emulador: venv
     .venv/bin/python -m app.emulator_download
+
+# Baixa as capas dos jogos (libretro-thumbnails) para dados/capas: uma vez por máquina
+sala-capas: venv
+    .venv/bin/python -m app.cover_download
 
 # Roda os testes do servidor (pytest)
 test: venv

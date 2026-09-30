@@ -1,5 +1,6 @@
 """Public API (`/api`): the session, the student list, "Quem é você?", the
-entregas of the student of this session, the games of the day and their placar.
+entregas of the student of this session, the games of the day, their covers and
+their placar.
 
 No authentication: the lab PCs only pick a name. Every non-GET request still
 needs the session's CSRF token (see `auth.guard`).
@@ -11,7 +12,7 @@ import sqlite3
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file, session
 
-from . import auth, games, scores, uploads
+from . import auth, covers, games, scores, uploads
 from .db import get_db
 from .lessons import current_lesson, today
 from .sheets import sheets_payload
@@ -188,19 +189,44 @@ def _visible_game(connection: sqlite3.Connection, game_id: str | None) -> games.
     return jogo
 
 
+def _game_payload(jogo: games.Jogo) -> dict:
+    """One game as the kid's screens carry it, covers included."""
+    data = current_app.config["SALA_CONFIG"].data_dir
+    return games.game_payload(jogo, cover=covers.cover_available(data, jogo))
+
+
 @bp.get("/games")
 def games_list() -> Response:
     """The games of the day: all playable ones in free mode, else the active one."""
     connection = get_db()
     return jsonify(
         mode="free" if games.free_mode(connection) else "single",
-        games=[games.game_payload(jogo) for jogo in games.visible_games(connection)],
+        games=[_game_payload(jogo) for jogo in games.visible_games(connection)],
     )
 
 
 @bp.get("/games/<game_id>")
 def game_one(game_id: str) -> Response:
-    return jsonify(games.game_payload(_visible_game(get_db(), game_id)))
+    return jsonify(_game_payload(_visible_game(get_db(), game_id)))
+
+
+@bp.get("/games/<game_id>/capa")
+def game_cover(game_id: str) -> Response:
+    """The cover image of a visible game, or 404.
+
+    Only the covers that live in the data directory are served here: our own
+    game ships its cover inside the SPA bundle, so its payload says `cover: true`
+    and this route has no file to hand out for it.
+    """
+    jogo = _visible_game(get_db(), game_id)
+    path = covers.cover_file(current_app.config["SALA_CONFIG"].data_dir, jogo)
+    if path is None:
+        raise auth.ApiError(404, games.NOT_FOUND_MESSAGE)
+    response = send_file(path, mimetype=covers.content_type(path))
+    # A day: a cover is a file on the teacher's laptop and changes only when the
+    # teacher changes it.
+    response.headers["Cache-Control"] = f"public, max-age={covers.CACHE_SECONDS}"
+    return response
 
 
 @bp.get("/games/<game_id>/rom")

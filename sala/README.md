@@ -34,6 +34,7 @@ sudo pacman -S avahi nss-mdns && sudo systemctl enable --now avahi-daemon   # op
 cd sala
 just sala-config     # o caminho do painel e a senha do professor
 just sala-emulador   # baixa o EmulatorJS 4.2.3 (uma vez por máquina)
+just sala-capas      # baixa as capas dos jogos (uma vez por máquina)
 ```
 
 `just sala-config` pergunta o caminho do painel (por padrão `/professor-` mais quatro letras
@@ -64,6 +65,21 @@ diz o que falta:
 
 - `Falta a ROM de Enduro: confira a pasta de ROMs (SALA_ROMS).`
 - `Falta o emulador de Enduro: rode just sala-emulador.`
+
+## As capas
+
+`just sala-capas` baixa a capa de cada jogo emulado do catálogo para `sala/dados/capas/<id>.png` —
+são as figuras que a turma vê na grade de jogos e ao lado do nome do jogo. Nenhuma capa está no
+repositório: as imagens vêm do [libretro-thumbnails](https://thumbnails.libretro.com) na
+configuração de cada notebook e continuam sendo obra de quem as fez.
+
+Rodar de novo é seguro: o jogo que já tem capa é pulado. Um jogo cuja capa o site não tenha é só
+avisado — a tela mostra o ícone do console no lugar da figura — e o comando termina dizendo quantas
+faltaram.
+
+Para usar uma imagem sua (ou trocar uma capa), ponha o arquivo em `sala/dados/capas/` com o id do
+jogo e uma destas extensões: `png`, `jpg`, `jpeg` ou `webp`. O arquivo que está lá **nunca** é
+sobrescrito: para baixar de novo, apague o seu.
 
 ## Dar a aula
 
@@ -114,6 +130,7 @@ Tudo o que a sala guarda vive em `sala/dados/` (ou onde `SALA_DADOS` apontar):
 | `config.toml` | O caminho do painel, o hash da senha e a chave das sessões (modo `0600`). |
 | `sala.db` | O banco SQLite: alunos, aulas, presença, entregas e placar. |
 | `aulas/aula-NN/<id>-<nome>/` | Os arquivos entregues, com a data e a hora no nome. |
+| `capas/<id>.png` | As capas dos jogos: baixadas pelo `just sala-capas`, ou as suas (`.jpg`, `.jpeg` e `.webp` também valem). |
 
 **Backup** é copiar essa pasta inteira, com o servidor parado: ela é pequena e tem tudo. Como o
 `config.toml` guarda segredos, trate a cópia como trataria uma senha.
@@ -133,6 +150,7 @@ O catálogo é `sala/jogos.yml`: uma lista, um jogo por entrada. Os campos:
 | `year`, `maker`, `about` | O ano, a fabricante e uma frase sobre o jogo. |
 | `controls` | A lista de teclas e o que cada uma faz. |
 | `score` | Opcional: onde a pontuação vive dentro do jogo (veja abaixo). |
+| `capa` | Opcional: o nome da capa no libretro-thumbnails, para os jogos cujo arquivo de ROM não tem o nome da caixa — é o caso dos fliperamas. Sem ele, a capa é procurada pelo nome do arquivo da ROM. |
 
 | `system` | `core` |
 |---|---|
@@ -233,6 +251,7 @@ O código da sala é MIT (veja [`../LICENSE`](../LICENSE)). O servidor e o site 
 | Peça | Licença | Onde |
 |---|---|---|
 | EmulatorJS 4.2.3 | GPL-3.0 | baixado pelo `just sala-emulador`, fora do repositório |
+| Capas dos jogos | de quem as fez | baixadas do libretro-thumbnails pelo `just sala-capas`, fora do repositório |
 | three.js | MIT | `web/node_modules/three` |
 | React e React DOM | MIT | `web/node_modules/react` e `.../react-dom` |
 | shadcn/ui | MIT | os componentes copiados para `web/src/components/ui/` |

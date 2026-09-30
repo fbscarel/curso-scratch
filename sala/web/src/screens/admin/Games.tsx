@@ -29,7 +29,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { getAdminGames, putGamesMode } from "@/lib/api";
-import { systemLabel } from "@/lib/games";
+import { coverSrc, systemLabel } from "@/lib/games";
 import type { AdminGame, AdminGames } from "@/lib/types";
 import { useAction } from "@/lib/useAction";
 import { useAsync } from "@/lib/useAsync";
@@ -243,6 +243,7 @@ export function GamesAdmin() {
 									<TableHeader>
 										<TableRow>
 											<TableHead>Jogo</TableHead>
+											<TableHead>Capa</TableHead>
 											<TableHead>Sistema</TableHead>
 											<TableHead>Ano</TableHead>
 											<TableHead>Fabricante</TableHead>
@@ -259,6 +260,9 @@ export function GamesAdmin() {
 													<span className="text-muted-foreground text-xs">
 														{game.id}
 													</span>
+												</TableCell>
+												<TableCell>
+													<CoverCell game={game} />
 												</TableCell>
 												<TableCell>{systemLabel(game.system)}</TableCell>
 												<TableCell className="text-muted-foreground">
@@ -280,6 +284,29 @@ export function GamesAdmin() {
 				</>
 			)}
 		</div>
+	);
+}
+
+/**
+ * CoverCell is the small picture of a game's cover, or the words for its
+ * absence.
+ *
+ * "sem capa" is the answer a teacher needs when a game's card looks bare on the
+ * kids' screens: the covers are downloaded once per laptop (`just sala-capas`)
+ * and travel in no repository, so a game without one is a game nobody downloaded
+ * a cover for yet -- not a broken catalogue entry.
+ */
+function CoverCell({ game }: { game: AdminGame }) {
+	const cover = coverSrc(game);
+	if (cover === null) {
+		return <span className="text-muted-foreground text-xs">sem capa</span>;
+	}
+	return (
+		<img
+			src={cover}
+			alt=""
+			className="h-12 w-9 rounded border border-border bg-scratch-ink object-contain"
+		/>
 	);
 }
 

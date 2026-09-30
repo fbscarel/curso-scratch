@@ -484,6 +484,17 @@ export function listGames(signal?: AbortSignal): Promise<GamesView> {
 }
 
 /**
+ * coverUrl is where the cover image of an emulated game is served from.
+ *
+ * It is a route and not a file name: the server answers 404 when the game is not
+ * one the kids can see right now, so an image element that outlives the mode
+ * cannot show the cover of a game that was turned off.
+ */
+export function coverUrl(id: string): string {
+	return `${API_PREFIX}/games/${encodeURIComponent(id)}/capa`;
+}
+
+/**
  * getGame is one visible game, by id.
  *
  * The id reaches this from the URL bar (`/jogos/<id>`), which is why it is

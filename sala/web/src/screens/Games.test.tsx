@@ -15,6 +15,7 @@ const ENDURO: Game = {
 	about: "Corrida de resistência: ultrapasse os carros dia e noite.",
 	controls: [{ keys: ["←", "→"], action: "virar" }],
 	autoScore: true,
+	cover: true,
 };
 
 const FROGGER: Game = {
@@ -30,6 +31,7 @@ const FROGGER: Game = {
 		{ keys: ["v"], action: "ficha (moeda)" },
 	],
 	autoScore: true,
+	cover: false,
 };
 
 /** The one game of our own: no console, so no console badge either. */
@@ -43,6 +45,7 @@ const PONG: Game = {
 	about: "Rebata a bola com a sua raquete.",
 	controls: [{ keys: ["↑", "↓"], action: "mover a raquete" }],
 	autoScore: true,
+	cover: true,
 };
 
 const EMPTY_BOARD = { record: null, top: [], myPending: [] };
@@ -110,6 +113,28 @@ describe("the /jogo screen", () => {
 		expect(screen.getByText("Jogo da sala")).toBeTruthy();
 		// A grid, not a game: nothing is embedded until one is chosen.
 		expect(document.querySelector("iframe")).toBeNull();
+	});
+
+	it("shows the cover of a game that has one, and the console icon otherwise", async () => {
+		serve({ mode: "free", games: [ENDURO, FROGGER, PONG] });
+		renderGames();
+
+		await screen.findByText("Enduro");
+
+		// The cover is the server's own route: it answers 404 for a game the
+		// teacher turned off, so the picture cannot outlive the mode.
+		const enduro = screen.getByRole("link", { name: /Enduro/ });
+		expect(enduro.querySelector("img")?.getAttribute("src")).toBe(
+			"/api/games/enduro/capa",
+		);
+		// A game whose cover was never downloaded keeps the console icon: a card
+		// with a broken image would be worse than no picture.
+		const frogger = screen.getByRole("link", { name: /Frogger/ });
+		expect(frogger.querySelector("img")).toBeNull();
+		// Our own game's cover travels inside the bundle, so it is an asset of
+		// this app and not an API route.
+		const pong = screen.getByRole("link", { name: /Pong/ });
+		expect(pong.querySelector("img")?.getAttribute("src")).toMatch(/pong-capa/);
 	});
 
 	it("opens the active game's page in single mode", async () => {

@@ -175,6 +175,11 @@ export interface GameControl {
  * lives in the core's memory, false for an emulated game whose number can only
  * be written down by hand. The screen reads it to choose between the live score
  * and the form.
+ *
+ * `cover` says whether there is a cover image to show for the game. Where the
+ * image comes from is the game's kind: our own game's cover is part of this
+ * bundle, and an emulated one is served by the lab server at
+ * `/api/games/<id>/capa` (see `coverSrc`).
  */
 export interface Game {
 	id: string;
@@ -186,6 +191,7 @@ export interface Game {
 	about: string;
 	controls: GameControl[];
 	autoScore: boolean;
+	cover: boolean;
 }
 
 /**
@@ -215,6 +221,9 @@ export type GameMissing = "rom" | "core";
  * `core` and `system` are absent for a builtin entry: there is no emulator core
  * behind our own Pong and no console it ran on, and the table has to be able to
  * say that rather than print an empty cell.
+ *
+ * `cover` says whether the teacher will see a cover on the kids' screens, so the
+ * table can tell a game that has one from a game that was never downloaded.
  */
 export interface AdminGame {
 	id: string;
@@ -226,6 +235,7 @@ export interface AdminGame {
 	maker: string;
 	playable: boolean;
 	missing: GameMissing | null;
+	cover: boolean;
 }
 
 /**

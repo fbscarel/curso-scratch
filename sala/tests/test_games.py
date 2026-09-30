@@ -158,6 +158,10 @@ def test_only_enduro_and_frogger_have_a_score_block():
         ({"controls": [{"keys": ["x"]}]}, "action"),
         ({"controls": [{"keys": ["x"], "action": " "}]}, "action"),
         ({"controls": ["x"]}, "controls"),
+        ({"capa": ""}, "capa"),
+        ({"capa": "   "}, "capa"),
+        ({"capa": 3}, "capa"),
+        ({"capa": "Endu\0ro (USA)"}, "capa"),
     ],
 )
 def test_a_bad_entry_names_the_file_and_the_entry(tmp_path, change, expected):
@@ -175,6 +179,50 @@ def test_a_builtin_game_has_no_rom_core_or_system(tmp_path):
         load(tmp_path, [{**BASE, "type": "builtin"}])
 
     assert "builtin" in str(error.value)
+
+
+def test_a_builtin_game_has_no_cover_name(tmp_path):
+    # Our own game's cover is a screenshot that ships with the SPA: there is no
+    # thumbnail to download for it, so a name for one is a mistake.
+    entry = {
+        "id": "pong",
+        "title": "Pong",
+        "type": "builtin",
+        "year": 1972,
+        "maker": "Atari",
+        "about": "Bate-bola.",
+        "controls": [{"keys": ["↑"], "action": "mover"}],
+        "capa": "Pong",
+    }
+
+    with pytest.raises(games.CatalogueError) as error:
+        load(tmp_path, [entry])
+
+    assert "builtin" in str(error.value) and "capa" in str(error.value)
+
+
+def test_the_catalogue_takes_a_cover_name(tmp_path):
+    jogo = load(tmp_path, [{**BASE, "capa": "  Enduro (USA)  "}])[0]
+
+    assert jogo.capa == "Enduro (USA)"
+
+
+def test_a_game_without_a_cover_name_has_none(tmp_path):
+    assert load(tmp_path, [BASE])[0].capa is None
+
+
+def test_the_arcade_entries_name_the_cover_of_their_cabinet():
+    # A MAME set name (`dkong`, `mspacman`) is not what is written on the box, so
+    # these entries name the thumbnail themselves; a console game is named after
+    # its ROM file and needs nothing.
+    named = {jogo.id: jogo.capa for jogo in games.catalogue() if jogo.capa is not None}
+
+    assert named == {
+        "frogger": "Frogger",
+        "galaga": "Galaga (Namco rev. B)",
+        "ms-pac-man": "Ms. Pac-Man",
+        "donkey-kong": "Donkey Kong (US set 1)",
+    }
 
 
 def test_an_arcade_game_may_use_either_arcade_core(tmp_path):
@@ -567,7 +615,7 @@ def test_choose_refuses_an_unknown_game_listing_the_ids(db):
 
 
 def test_the_public_payload_has_the_controls_of_the_game():
-    payload = games.game_payload(games.by_id("frogger"))
+    payload = games.game_payload(games.by_id("frogger"), cover=True)
 
     assert set(payload) == {
         "id",
@@ -579,24 +627,26 @@ def test_the_public_payload_has_the_controls_of_the_game():
         "about",
         "controls",
         "autoScore",
+        "cover",
     }
     assert payload["system"] == "arcade"
     assert payload["year"] == 1981
+    assert payload["cover"] is True
     assert {"keys": ["v"], "action": "colocar a ficha (coin)"} in payload["controls"]
 
 
 def test_the_public_payload_says_when_a_game_scores_by_itself():
-    assert games.game_payload(games.by_id("pong"))["autoScore"] is True
-    assert games.game_payload(games.by_id("enduro"))["autoScore"] is True
-    assert games.game_payload(games.by_id("frogger"))["autoScore"] is True
-    assert games.game_payload(games.by_id("space-invaders"))["autoScore"] is False
+    assert games.game_payload(games.by_id("pong"), cover=False)["autoScore"] is True
+    assert games.game_payload(games.by_id("enduro"), cover=False)["autoScore"] is True
+    assert games.game_payload(games.by_id("frogger"), cover=False)["autoScore"] is True
+    assert games.game_payload(games.by_id("space-invaders"), cover=False)["autoScore"] is False
 
 
 def test_the_admin_payload_says_what_is_missing(install_games):
     install_games("enduro")
     install_games("frogger", core=False)
 
-    ready = games.admin_payload(games.by_id("enduro"))
+    ready = games.admin_payload(games.by_id("enduro"), cover=True)
     assert set(ready) == {
         "id",
         "title",
@@ -607,8 +657,10 @@ def test_the_admin_payload_says_what_is_missing(install_games):
         "maker",
         "playable",
         "missing",
+        "cover",
     }
     assert ready["playable"] is True and ready["missing"] is None
     assert ready["core"] == "stella2014"
-    assert games.admin_payload(games.by_id("sonic"))["missing"] == "rom"
-    assert games.admin_payload(games.by_id("frogger"))["missing"] == "core"
+    assert ready["cover"] is True
+    assert games.admin_payload(games.by_id("sonic"), cover=False)["missing"] == "rom"
+    assert games.admin_payload(games.by_id("frogger"), cover=False)["missing"] == "core"
