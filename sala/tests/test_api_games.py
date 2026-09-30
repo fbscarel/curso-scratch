@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import io
+
 import pytest
 
-from app import games
+from app import covers, games
 from app.auth import CSRF_HEADER
 
 API = "/api/games"
@@ -281,8 +283,8 @@ def test_a_traversal_in_the_id_is_404(client, install_games, set_game_mode, url)
 
 # --- the cover -------------------------------------------------------------
 
-PNG = b"\x89PNG\r\n\x1a\n" + b"capa de mentira"
-JPEG = b"\xff\xd8\xff" + b"capa de mentira"
+PNG = b"\x89PNG\r\n\x1a\n" + b"capa de mentira" + b"\x00\x00\x00\x00IEND\xaeB`\x82"
+JPEG = b"\xff\xd8\xff" + b"capa de mentira" + b"\xff\xd9"
 
 
 def write_cover(data_dir, game_id: str, data: bytes = PNG, extension: str = "png"):
@@ -352,6 +354,76 @@ def test_the_cover_needs_no_login(client, data_dir, install_games, set_game_mode
     write_cover(data_dir, "enduro")
 
     assert client.get(f"{API}/enduro/capa").status_code == 200
+
+
+def test_a_cover_symlink_that_leaves_the_covers_dir_is_404(
+    client, data_dir, install_games, set_game_mode
+):
+    # A symlink planted in capas/ must not hand out a file from anywhere else --
+    # the data directory's own config, say -- through the public image route.
+    install_games("enduro")
+    set_game_mode(active="enduro")
+    secret = data_dir / "config.toml"
+    secret.parent.mkdir(parents=True, exist_ok=True)
+    secret.write_bytes(b"senha: segredo")
+    directory = data_dir / "capas"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "enduro.png").symlink_to(secret)
+
+    response = client.get(f"{API}/enduro/capa")
+
+    assert response.status_code == 404
+    assert b"segredo" not in response.data
+
+
+def test_a_downloaded_jpeg_is_served_as_a_jpeg(client, data_dir, install_games, set_game_mode):
+    # The download stores a JPEG as `.jpg`, so the endpoint's content type is the
+    # one the image actually is.
+    install_games("enduro")
+    set_game_mode(active="enduro")
+
+    def thumbnails(url: str) -> io.BytesIO:
+        return io.BytesIO(JPEG)
+
+    assert covers.install(data_dir, [games.by_id("enduro")], opener=thumbnails) == 0
+    assert (data_dir / "capas" / "enduro.jpg").is_file()
+
+    response = client.get(f"{API}/enduro/capa")
+
+    assert response.status_code == 200
+    assert response.mimetype == "image/jpeg"
+
+
+# --- the teacher's cover route ---------------------------------------------
+
+
+def test_the_admin_cover_serves_a_game_the_kids_cannot_see(
+    admin_client, admin_api, data_dir, install_games, set_game_mode
+):
+    # The teacher's table lists the whole catalogue, so its cover route has to
+    # hand out a game that is not visible to the kids right now.
+    install_games()
+    set_game_mode(active="enduro")
+    write_cover(data_dir, "frogger")
+
+    response = admin_client.get(f"{admin_api}/games/frogger/capa")
+
+    assert response.status_code == 200
+    assert response.data == PNG and response.mimetype == "image/png"
+
+
+def test_the_admin_cover_is_a_404_for_a_game_without_a_file(
+    admin_client, admin_api, install_games
+):
+    install_games()
+
+    assert admin_client.get(f"{admin_api}/games/enduro/capa").status_code == 404
+
+
+def test_the_admin_cover_is_a_404_for_an_unknown_game(admin_client, admin_api, install_games):
+    install_games()
+
+    assert admin_client.get(f"{admin_api}/games/nao-existe/capa").status_code == 404
 
 
 def test_the_cover_of_a_game_of_our_own_is_its_own_file_in_the_spa(client, set_game_mode):

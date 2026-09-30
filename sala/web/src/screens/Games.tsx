@@ -1,4 +1,5 @@
 import { Gamepad2 } from "lucide-react";
+import { useState } from "react";
 import { Empty, ErrorNotice, Link } from "@/components/Bits";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -152,16 +153,23 @@ export function Games({
  * The picture is the game's cover when the laptop has one, and the console's
  * icon on the block colour of that console when it does not: box art has many
  * aspect ratios, so it is contained rather than stretched, on the dark card the
- * covers are drawn for.
+ * covers are drawn for. An image that fails to load -- a corrupt scan, or a file
+ * the teacher removed after the answer arrived -- falls back to the same icon
+ * rather than leaving a broken picture on the card.
  */
 function GameCard({ game }: { game: Game }) {
 	const cover = coverSrc(game);
+	// The cover that failed, kept rather than a flag: a new source is a new
+	// chance, because the failure belongs to the picture that failed and not to
+	// the card.
+	const [failedCover, setFailedCover] = useState<string | null>(null);
+	const failed = cover !== null && failedCover === cover;
 	return (
 		<Link
 			to={hrefFor({ name: "game", id: game.id })}
 			className="group flex animate-in flex-col gap-3 rounded-3xl border-2 border-border bg-card p-4 shadow-sm transition-all duration-300 fade-in slide-in-from-bottom-2 hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring"
 		>
-			{cover === null ? (
+			{cover === null || failed ? (
 				<span
 					className={cn(
 						"grid aspect-[4/3] place-items-center rounded-2xl text-foreground shadow-inner",
@@ -172,7 +180,12 @@ function GameCard({ game }: { game: Game }) {
 				</span>
 			) : (
 				<span className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl bg-scratch-ink shadow-inner">
-					<img src={cover} alt="" className="h-full w-full object-contain" />
+					<img
+						src={cover}
+						alt=""
+						className="h-full w-full object-contain"
+						onError={() => setFailedCover(cover)}
+					/>
 				</span>
 			)}
 			<span className="font-extrabold text-2xl">{game.title}</span>

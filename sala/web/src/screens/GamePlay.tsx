@@ -196,6 +196,14 @@ export function GamePlay({
 	// answer arrives, and a sample that arrives before it has no game to belong
 	// to.
 	const autoScore = game.data?.autoScore ?? false;
+	// The panel's picture and the source that failed to load. Read from the
+	// answer here rather than beside the render below, because a hook cannot sit
+	// after the early returns that an absent answer produces. Keeping the failed
+	// SOURCE and not a flag makes a new picture a new chance: the failure
+	// belongs to the image that failed.
+	const cover = game.data ? coverSrc(game.data) : null;
+	const [failedCover, setFailedCover] = useState<string | null>(null);
+	const coverFailed = cover !== null && failedCover === cover;
 
 	// Installed once. The listener is about the page's messages, not about which
 	// game is on: a new game is a new document in the same frame, and the
@@ -451,7 +459,6 @@ export function GamePlay({
 	if (!data) return null;
 
 	const builtin = data.type === "builtin";
-	const cover = coverSrc(data);
 
 	return (
 		<div className="space-y-6">
@@ -549,11 +556,12 @@ export function GamePlay({
 
 				<aside className="space-y-4">
 					<div className="flex items-start gap-4">
-						{cover !== null && (
+						{cover !== null && !coverFailed && (
 							<img
 								src={cover}
 								alt=""
 								className="h-28 w-24 shrink-0 rounded-2xl border-2 border-border bg-scratch-ink object-contain"
+								onError={() => setFailedCover(cover)}
 							/>
 						)}
 						<div>

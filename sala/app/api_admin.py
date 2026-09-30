@@ -547,6 +547,28 @@ def games_mode() -> Response:
     return Response(status=204)
 
 
+@bp.get("/games/<game_id>/capa")
+@auth.admin_required
+def game_cover(game_id: str) -> Response:
+    """The cover of any catalogue game, whatever the kids may see right now.
+
+    The teacher's table lists the WHOLE catalogue -- including the entries that
+    are turned off or cannot run -- so it cannot use the public route, which
+    answers 404 for a game that is not visible. Any known game's file is handed
+    out; an unknown id is a 404. Private caching: this answer is behind the
+    login, so a shared proxy must not keep it for a logged-out reader.
+    """
+    jogo = games.by_id(game_id)
+    if jogo is None:
+        raise auth.ApiError(404, games.NOT_FOUND_MESSAGE)
+    path = covers.cover_file(current_app.config["SALA_CONFIG"].data_dir, jogo)
+    if path is None:
+        raise auth.ApiError(404, games.NOT_FOUND_MESSAGE)
+    response = send_file(path, mimetype=covers.content_type(path))
+    response.headers["Cache-Control"] = f"private, max-age={covers.CACHE_SECONDS}"
+    return response
+
+
 # --- pontuações ------------------------------------------------------------
 
 

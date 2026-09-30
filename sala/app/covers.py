@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import http.client
 import os
+import shutil
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
@@ -47,9 +49,10 @@ REPLACED_CHARACTERS = '&*/:`<>?\\|"'
 COVERS_DIRNAME = "capas"
 # The formats a cover may have, in the order the server looks for them.
 COVER_EXTENSIONS = ("png", "jpg", "jpeg", "webp")
-# What the download writes: one extension for every game, so a second run finds
-# its own file.
-DOWNLOAD_EXTENSION = "png"
+# What the download writes for each kind of image: the extension follows the
+# bytes, so a JPEG is stored as `.jpg` and served as `image/jpeg` rather than
+# under a `.png` name that would lie about the content type.
+DOWNLOAD_EXTENSIONS = {"png": "png", "jpeg": "jpg"}
 CONTENT_TYPES = {
     "png": "image/png",
     "jpg": "image/jpeg",
@@ -63,6 +66,11 @@ DEFAULT_CONTENT_TYPE = "application/octet-stream"
 MAX_COVER_BYTES = 5 * 1024 * 1024
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 JPEG_MAGIC = b"\xff\xd8\xff"
+# The end of an image, which is what tells a whole download from one that
+# stopped early: the PNG IEND chunk (length 0, type, CRC) and the JPEG EOI
+# marker. A body that carries only the magic bytes is not a picture.
+PNG_END = b"\x00\x00\x00\x00IEND\xaeB`\x82"
+JPEG_END = b"\xff\xd9"
 
 # The browser may keep a cover for a day: it is a file on the teacher's laptop,
 # and it changes only when the teacher changes it.
@@ -70,8 +78,9 @@ CACHE_SECONDS = 60 * 60 * 24
 
 USER_AGENT = "Sala (servidor local da sala de aula)"
 TIMEOUT_SECONDS = 30
-# The download lands under this suffix and is renamed into place once it is
-# whole, so a dropped connection never leaves a half image to be served.
+# The download lands in a temporary file under this suffix and is published
+# under the target name only once it is whole, so a dropped connection never
+# leaves a half image to be served.
 PART_SUFFIX = ".parcial"
 CHUNK_SIZE = 64 * 1024
 
@@ -127,11 +136,26 @@ def covers_dir(data: Path) -> Path:
 
 
 def cover_file(data: Path, jogo: games.Jogo) -> Path | None:
-    """The image to show for a game: the first extension that is there, or None."""
+    """The image to show for a game: the first extension that is there, or None.
+
+    The candidate is resolved (symlinks and all) and refused unless the result
+    is still inside the covers directory, so a symlink planted there cannot hand
+    out a file from anywhere else -- `dados/config.toml`, say. The same check
+    `games.rom_file` makes, for the same reason.
+    """
+    try:
+        base = covers_dir(data).resolve()
+    except (OSError, ValueError):
+        # ValueError is the path itself being unusable (a NUL in the name, say):
+        # there is no cover to look for, which is the same answer as none.
+        return None
     for extension in COVER_EXTENSIONS:
-        path = covers_dir(data) / f"{jogo.id}.{extension}"
-        if path.is_file():
-            return path
+        try:
+            resolved = (base / f"{jogo.id}.{extension}").resolve()
+        except (OSError, ValueError):
+            continue
+        if resolved.is_relative_to(base) and resolved.is_file():
+            return resolved
     return None
 
 
@@ -170,14 +194,48 @@ def image_kind(data: bytes) -> str | None:
     return None
 
 
+def image_complete(kind: str, data: bytes) -> bool:
+    """True when the bytes carry the end of an image of that kind.
+
+    The signature alone says nothing about the body: a download that stopped
+    early has the magic bytes of a real image and nothing else, and storing it
+    would leave a broken cover that the next run skips. A PNG ends with its IEND
+    chunk and a JPEG with its EOI marker.
+    """
+    if kind == "png":
+        return data.endswith(PNG_END)
+    return data.endswith(JPEG_END)
+
+
 def open_url(url: str) -> IO[bytes]:
     """The default opener: libretro-thumbnails over HTTPS, saying who we are."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     return urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS)
 
 
+def _advertised_length(stream: IO[bytes]) -> int | None:
+    """The byte count the response promised, or None when it did not say.
+
+    A stand-in and a chunked answer have no `Content-Length`; the real response
+    does, and it is what turns a silently short body into the failure it is.
+    """
+    headers = getattr(stream, "headers", None)
+    if headers is None:
+        return None
+    try:
+        length = int(headers.get("Content-Length"))
+    except (TypeError, ValueError):
+        return None
+    return length if length >= 0 else None
+
+
 def _read_at_most(stream: IO[bytes], limit: int) -> bytes:
-    """Read the stream, refusing anything over `limit` (raises CoverTooLarge)."""
+    """Read the stream, refusing anything over `limit` (raises CoverTooLarge).
+
+    A body that stops before the length it advertised is the same thing as one
+    that dies mid-stream: `IncompleteRead`, which the caller reports and does not
+    store.
+    """
     blocks: list[bytes] = []
     total = 0
     while total <= limit:
@@ -189,24 +247,82 @@ def _read_at_most(stream: IO[bytes], limit: int) -> bytes:
     data = b"".join(blocks)
     if len(data) > limit:
         raise CoverTooLarge
+    advertised = _advertised_length(stream)
+    if advertised is not None and len(data) < advertised:
+        raise http.client.IncompleteRead(data, advertised - len(data))
     return data
 
 
+def _discard(path: Path) -> None:
+    """Remove a temporary file, whatever happens.
+
+    The error worth reporting is the one that left it behind, and a cleanup that
+    itself raises must not hide it.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _write_temporary(directory: Path, name: str, body: bytes) -> Path:
+    """Write `body` to a fresh file in `directory`; returns its path.
+
+    Unique per call, so two downloads -- of the same game, or of two -- never
+    write over each other's half image.
+    """
+    handle, raw = tempfile.mkstemp(dir=directory, prefix=f".{name}.", suffix=PART_SUFFIX)
+    path = Path(raw)
+    try:
+        with os.fdopen(handle, "wb") as stream:
+            stream.write(body)
+    except BaseException:
+        _discard(path)
+        raise
+    return path
+
+
+def _publish(temporary: Path, target: Path) -> None:
+    """Put the whole file at `target`, never replacing one that is there.
+
+    `os.link` is the atomic no-clobber publish: it fails with `FileExistsError`
+    when the name is taken. A filesystem without hard links (a FAT stick, say)
+    gets the same guarantee from an `O_EXCL` create, and a copy that dies
+    half-way leaves nothing behind under a cover name.
+    """
+    try:
+        os.link(temporary, target)
+    except FileExistsError:
+        raise
+    except OSError:
+        try:
+            handle = open(target, "xb")
+        except FileExistsError:
+            raise
+        try:
+            with handle, open(temporary, "rb") as source:
+                shutil.copyfileobj(source, handle, CHUNK_SIZE)
+        except BaseException:
+            target.unlink(missing_ok=True)
+            raise
+
+
 def fetch_cover(
-    directory: Path,
+    data: Path,
     jogo: games.Jogo,
     url: str,
     opener: Callable[[str], IO[bytes]],
 ) -> str | None:
-    """Download one cover into `<directory>/<id>.png`; why it failed, or None.
+    """Download one cover into the covers directory; why it failed, or None.
 
-    The bytes are checked before anything is written -- a PNG or a JPEG, and no
-    bigger than a cover may be -- and the file lands through a `.parcial` name
-    renamed over the target only once it is whole.
+    The bytes are checked before anything is written -- a whole PNG or JPEG, and
+    no bigger than a cover may be -- and they land through a unique temporary
+    file, published under the target name only once they are whole and no cover
+    has appeared in the meantime.
     """
     try:
         with opener(url) as response:
-            data = _read_at_most(response, MAX_COVER_BYTES)
+            body = _read_at_most(response, MAX_COVER_BYTES)
     except urllib.error.HTTPError as error:
         # An HTTPError is an OSError, so it is caught before the generic case to
         # say which of the two things went wrong.
@@ -221,18 +337,40 @@ def fetch_cover(
         # an OSError, but the same thing here -- nothing was downloaded.
         return f"não consegui baixar ({url}): {error}"
 
-    if image_kind(data) is None:
+    kind = image_kind(body)
+    if kind is None:
         return "não é uma imagem PNG nem JPEG; não guardei"
+    if not image_complete(kind, body):
+        return "a imagem veio incompleta; não guardei"
 
-    directory.mkdir(parents=True, exist_ok=True)
-    target = directory / f"{jogo.id}.{DOWNLOAD_EXTENSION}"
-    partial = target.with_name(target.name + PART_SUFFIX)
+    directory = covers_dir(data)
+    target = directory / f"{jogo.id}.{DOWNLOAD_EXTENSIONS[kind]}"
     try:
-        partial.write_bytes(data)
-        os.replace(partial, target)
+        # The directory is made here, with the write it serves: a `capas` that
+        # cannot be created (it is a file, or the teacher may not write there) is
+        # a failed cover, not a traceback out of the recipe.
+        directory.mkdir(parents=True, exist_ok=True)
+        temporary = _write_temporary(directory, target.name, body)
     except OSError as error:
-        partial.unlink(missing_ok=True)
         return f"não consegui guardar: {error}"
+
+    # The teacher's own image wins, whatever its extension: one can appear while
+    # this download runs, and publishing over it would throw away the picture the
+    # teacher chose. Every extension is looked at again right here.
+    if cover_file(data, jogo) is not None:
+        _discard(temporary)
+        return None
+    try:
+        _publish(temporary, target)
+    except FileExistsError:
+        # Something got to the target name between the check and the publish:
+        # the cover that is there stays, and this download did its job.
+        _discard(temporary)
+        return None
+    except OSError as error:
+        _discard(temporary)
+        return f"não consegui guardar: {error}"
+    _discard(temporary)
     return None
 
 
@@ -249,7 +387,6 @@ def install(
     and a cover that cannot be got is reported by game and the run goes on.
     """
     fetch = opener or open_url
-    directory = covers_dir(data)
     failures = 0
     for jogo in jogos:
         url = thumbnail_url(jogo)
@@ -259,7 +396,7 @@ def install(
             print(f"já tem capa: {jogo.id}")
             continue
         print(f"baixando: {jogo.id} ({url})")
-        error = fetch_cover(directory, jogo, url, fetch)
+        error = fetch_cover(data, jogo, url, fetch)
         if error is not None:
             print(f"sem capa para {jogo.title} ({jogo.id}): {error}", file=sys.stderr)
             failures += 1

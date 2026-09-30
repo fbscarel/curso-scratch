@@ -14,8 +14,8 @@ import pytest
 
 from app import covers, games
 
-PNG = b"\x89PNG\r\n\x1a\n" + b"imagem de mentira"
-JPEG = b"\xff\xd8\xff" + b"imagem de mentira"
+PNG = b"\x89PNG\r\n\x1a\n" + b"imagem de mentira" + b"\x00\x00\x00\x00IEND\xaeB`\x82"
+JPEG = b"\xff\xd8\xff" + b"imagem de mentira" + b"\xff\xd9"
 
 ENDURO_URL = (
     "https://thumbnails.libretro.com/Atari%20-%202600"
@@ -63,6 +63,38 @@ class Truncated:
         raise http.client.IncompleteRead(self.first)
 
     def __enter__(self) -> Truncated:
+        return self
+
+    def __exit__(self, *args: object) -> bool:
+        return False
+
+
+class ShortBody:
+    """A body that stops before the length it advertised in its headers.
+
+    What a dropped connection looks like from the reader's side: the stream ends
+    early and nothing raises, so only the promised length tells the difference.
+    """
+
+    def __init__(self, body: bytes = PNG, *, advertised: int | None = None) -> None:
+        self.body = body
+        self.headers = {
+            "Content-Length": str(
+                advertised if advertised is not None else len(body) + 100
+            )
+        }
+        self.sent = False
+
+    def __call__(self, url: str) -> ShortBody:
+        return self
+
+    def read(self, size: int = -1) -> bytes:
+        if self.sent:
+            return b""
+        self.sent = True
+        return self.body
+
+    def __enter__(self) -> ShortBody:
         return self
 
     def __exit__(self, *args: object) -> bool:
@@ -150,6 +182,19 @@ def test_the_cover_of_another_game_is_not_this_game_s_cover(tmp_path):
     (directory / "frogger.png").write_bytes(PNG)
 
     assert covers.cover_file(tmp_path, games.by_id("enduro")) is None
+
+
+def test_a_cover_symlink_that_leaves_the_covers_dir_is_no_cover(tmp_path):
+    # A symlink planted in capas/ must not hand out a file from anywhere else:
+    # the candidate is resolved and refused unless it is still inside.
+    directory = covers.covers_dir(tmp_path)
+    directory.mkdir(parents=True)
+    secret = tmp_path / "config.toml"
+    secret.write_bytes(b"senha: segredo")
+    (directory / "enduro.png").symlink_to(secret)
+
+    assert covers.cover_file(tmp_path, games.by_id("enduro")) is None
+    assert covers.cover_available(tmp_path, games.by_id("enduro")) is False
 
 
 def test_a_game_of_our_own_always_has_a_cover(tmp_path):
@@ -273,12 +318,93 @@ def test_a_failed_cover_does_not_stop_the_others(tmp_path):
     assert covers.cover_file(tmp_path, frogger).read_bytes() == PNG
 
 
-def test_a_jpeg_cover_is_accepted(tmp_path):
+def test_a_jpeg_cover_is_accepted_under_the_jpg_extension(tmp_path):
+    # The extension follows the bytes: a JPEG stored under a `.png` name would be
+    # served as image/png, which is not what it is.
     thumbnails = FakeThumbnails({ENDURO_URL: JPEG})
 
     assert covers.install(tmp_path, [games.by_id("enduro")], opener=thumbnails) == 0
 
-    assert covers.cover_file(tmp_path, games.by_id("enduro")).read_bytes() == JPEG
+    assert (covers.covers_dir(tmp_path) / "enduro.jpg").read_bytes() == JPEG
+    assert not (covers.covers_dir(tmp_path) / "enduro.png").exists()
+
+
+def test_a_truncated_image_is_refused(tmp_path, capsys):
+    # The magic bytes alone are not a picture: a body that stops before the end
+    # of the image would be stored and served as a permanent broken cover.
+    thumbnails = FakeThumbnails({ENDURO_URL: PNG[:-12]})
+
+    failures = covers.install(tmp_path, [games.by_id("enduro")], opener=thumbnails)
+
+    assert failures == 1
+    assert covers.cover_file(tmp_path, games.by_id("enduro")) is None
+    # The check is before any filesystem work: no directory is even created.
+    assert not covers.covers_dir(tmp_path).exists()
+    assert "incompleta" in capsys.readouterr().err
+
+
+def test_a_body_shorter_than_its_content_length_is_reported(tmp_path, capsys):
+    # The server said how many bytes it would send and stopped short: nothing
+    # raises, so the advertised length is what catches it.
+    failures = covers.install(tmp_path, [games.by_id("enduro")], opener=ShortBody(PNG))
+
+    assert failures == 1
+    assert covers.cover_file(tmp_path, games.by_id("enduro")) is None
+    assert "não consegui baixar" in capsys.readouterr().err
+
+
+def test_a_cover_that_appears_while_downloading_is_not_overwritten(tmp_path):
+    # The teacher drops their own scan into capas/ while the download runs: the
+    # download must not replace the picture the teacher chose.
+    directory = covers.covers_dir(tmp_path)
+    directory.mkdir(parents=True)
+    teacher = b"a capa que o professor escolheu"
+
+    class TeacherFirst:
+        def __call__(self, url: str) -> io.BytesIO:
+            (directory / "enduro.jpg").write_bytes(teacher)
+            return io.BytesIO(PNG)
+
+    failures = covers.install(tmp_path, [games.by_id("enduro")], opener=TeacherFirst())
+
+    assert failures == 0
+    assert covers.cover_file(tmp_path, games.by_id("enduro")).read_bytes() == teacher
+    # No half image left, and nothing under the name the download would have used.
+    assert sorted(path.name for path in directory.iterdir()) == ["enduro.jpg"]
+
+
+def test_a_capas_that_is_a_file_fails_the_cover_and_the_run_goes_on(tmp_path, capsys):
+    # A `capas` that cannot be created is a failed cover, not a traceback out of
+    # the recipe: the miss is reported and the next game is still tried.
+    directory = covers.covers_dir(tmp_path)
+    directory.write_text("não sou uma pasta")
+    thumbnails = FakeThumbnails(
+        {ENDURO_URL: PNG, covers.thumbnail_url(games.by_id("frogger")): PNG}
+    )
+
+    failures = covers.install(
+        tmp_path, [games.by_id("enduro"), games.by_id("frogger")], opener=thumbnails
+    )
+
+    assert failures == 2
+    err = capsys.readouterr().err
+    assert "Enduro" in err and "não consegui guardar" in err
+    assert "Frogger" in err
+
+
+def test_an_unwritable_capas_fails_the_cover_and_the_run_goes_on(tmp_path, capsys):
+    directory = covers.covers_dir(tmp_path)
+    directory.mkdir(parents=True)
+    directory.chmod(0o500)
+    try:
+        failures = covers.install(
+            tmp_path, [games.by_id("enduro")], opener=FakeThumbnails({ENDURO_URL: PNG})
+        )
+    finally:
+        directory.chmod(0o700)
+
+    assert failures == 1
+    assert "não consegui guardar" in capsys.readouterr().err
 
 
 def test_the_download_identifies_itself(monkeypatch):

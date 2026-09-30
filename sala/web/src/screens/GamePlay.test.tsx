@@ -185,6 +185,20 @@ describe("the game page", () => {
 		);
 	});
 
+	it("drops the panel picture when the cover image fails to load", async () => {
+		renderGame("enduro");
+
+		await screen.findByRole("heading", { name: "Enduro" });
+		const image = document.querySelector("aside img");
+		expect(image).toBeTruthy();
+
+		fireEvent.error(image as HTMLImageElement);
+
+		await waitFor(() => expect(document.querySelector("aside img")).toBeNull());
+		// The panel is still the game's panel: only the picture is gone.
+		expect(screen.getByRole("heading", { name: "Enduro" })).toBeTruthy();
+	});
+
 	it("leaves the panel without a picture for a game that has no cover", async () => {
 		// The covers are downloaded once per laptop and are in no repository, so
 		// a game without one is a normal thing to find.

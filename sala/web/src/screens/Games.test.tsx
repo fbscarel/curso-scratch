@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { forgetCsrf, rememberCsrf } from "@/lib/api";
@@ -135,6 +141,23 @@ describe("the /jogo screen", () => {
 		// this app and not an API route.
 		const pong = screen.getByRole("link", { name: /Pong/ });
 		expect(pong.querySelector("img")?.getAttribute("src")).toMatch(/pong-capa/);
+	});
+
+	it("falls back to the console icon when the cover image fails to load", async () => {
+		serve({ mode: "free", games: [ENDURO] });
+		renderGames();
+
+		await screen.findByText("Enduro");
+		const card = screen.getByRole("link", { name: /Enduro/ });
+		const image = card.querySelector("img");
+		expect(image).toBeTruthy();
+
+		// A corrupt scan, or a file the teacher removed after the answer
+		// arrived: the card keeps the icon rather than a broken picture.
+		fireEvent.error(image as HTMLImageElement);
+
+		await waitFor(() => expect(card.querySelector("img")).toBeNull());
+		expect(card.querySelector("svg")).toBeTruthy();
 	});
 
 	it("opens the active game's page in single mode", async () => {

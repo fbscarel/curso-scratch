@@ -1,5 +1,5 @@
 import pongCover from "@/assets/pong-capa.png";
-import { coverUrl } from "@/lib/api";
+import { adminCoverUrl, coverUrl } from "@/lib/api";
 import type { Game, GameSystem } from "@/lib/types";
 
 /**
@@ -72,13 +72,19 @@ function mockCover(title: string): string {
  * The flag on the game is what says whether there is an image at all: the covers
  * are downloaded once per laptop (`just sala-capas`) and are in no repository, so
  * a laptop that never ran it has boxes to show only because of the icons.
+ *
+ * `admin` picks the teacher's route instead of the kid's: the teacher's table
+ * lists the whole catalogue, and the public route 404s for the games the kids
+ * cannot see right now.
  */
 export function coverSrc(
 	game: Pick<Game, "id" | "title" | "type" | "cover">,
+	{ admin = false }: { admin?: boolean } = {},
 ): string | null {
 	if (game.type === "builtin") return pongCover;
 	if (!game.cover) return null;
-	return MOCK_MODE ? mockCover(game.title) : coverUrl(game.id);
+	if (MOCK_MODE) return mockCover(game.title);
+	return admin ? adminCoverUrl(game.id) : coverUrl(game.id);
 }
 
 /**

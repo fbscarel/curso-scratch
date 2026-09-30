@@ -495,6 +495,17 @@ export function coverUrl(id: string): string {
 }
 
 /**
+ * adminCoverUrl is where the teacher's table loads a cover from.
+ *
+ * The admin route and not the public one: the table lists the WHOLE catalogue,
+ * and the public route answers 404 for a game the kids cannot see right now --
+ * which is exactly the entries the teacher needs a picture for.
+ */
+export function adminCoverUrl(id: string): string {
+	return adminPath(`/games/${encodeURIComponent(id)}/capa`);
+}
+
+/**
  * getGame is one visible game, by id.
  *
  * The id reaches this from the URL bar (`/jogos/<id>`), which is why it is

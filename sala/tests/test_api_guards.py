@@ -43,6 +43,7 @@ EXPECTED_ADMIN_GUARDED = {
     ("PATCH", "/uploads/1"),
     ("GET", "/uploads/lesson/1.zip"),
     ("GET", "/games"),
+    ("GET", "/games/1/capa"),
     ("PUT", "/games/mode"),
     ("GET", "/scores"),
     ("PUT", "/scores/1/approval"),

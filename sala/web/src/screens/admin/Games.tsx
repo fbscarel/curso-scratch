@@ -294,11 +294,20 @@ export function GamesAdmin() {
  * "sem capa" is the answer a teacher needs when a game's card looks bare on the
  * kids' screens: the covers are downloaded once per laptop (`just sala-capas`)
  * and travel in no repository, so a game without one is a game nobody downloaded
- * a cover for yet -- not a broken catalogue entry.
+ * a cover for yet -- not a broken catalogue entry. An image that fails to load
+ * says the same thing: a corrupt scan or a file removed since the answer arrived
+ * is a cover this laptop does not have.
+ *
+ * The picture comes from the ADMIN cover route: the table lists the whole
+ * catalogue, and the public one 404s for a game the kids cannot see right now.
  */
 function CoverCell({ game }: { game: AdminGame }) {
-	const cover = coverSrc(game);
-	if (cover === null) {
+	const cover = coverSrc(game, { admin: true });
+	// The cover that failed, kept rather than a flag: a new source is a new
+	// chance, because the failure belongs to the picture that failed.
+	const [failedCover, setFailedCover] = useState<string | null>(null);
+	const failed = cover !== null && failedCover === cover;
+	if (cover === null || failed) {
 		return <span className="text-muted-foreground text-xs">sem capa</span>;
 	}
 	return (
@@ -306,6 +315,7 @@ function CoverCell({ game }: { game: AdminGame }) {
 			src={cover}
 			alt=""
 			className="h-12 w-9 rounded border border-border bg-scratch-ink object-contain"
+			onError={() => setFailedCover(cover)}
 		/>
 	);
 }

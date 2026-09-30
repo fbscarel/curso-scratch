@@ -228,8 +228,22 @@ describe("the admin Jogos screen", () => {
 		const shown = [...document.querySelectorAll("table img")].map((image) =>
 			image.getAttribute("src"),
 		);
-		expect(shown).toEqual(["/api/games/enduro/capa"]);
+		// The admin route and not the public one: the table lists the whole
+		// catalogue, and the public route 404s for the games the kids cannot see.
+		expect(shown).toEqual([`${BASE}/api/games/enduro/capa`]);
 		expect(screen.getAllByText("sem capa")).toHaveLength(2);
+	});
+
+	it("says 'sem capa' when the cover image fails to load", async () => {
+		render(<GamesAdmin />);
+
+		expect(await screen.findByText("Pronto")).toBeTruthy();
+		const image = document.querySelector("table img") as HTMLImageElement;
+
+		fireEvent.error(image);
+
+		await waitFor(() => expect(document.querySelector("table img")).toBeNull());
+		expect(screen.getAllByText("sem capa")).toHaveLength(3);
 	});
 
 	it("shows why an entry cannot be played, for every entry", async () => {
