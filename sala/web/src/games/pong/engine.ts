@@ -41,17 +41,18 @@ export const START_LIVES = 3;
  * How fast the player's paddle follows the keys, and how fast the CPU's follows
  * the ball.
  *
- * The player is quicker than the ball can ever be, so a lost life is always a
- * life the kid could have saved -- and the CPU is slower than the ball at its
- * cap, so the game can be won by making the ball fast.
+ * The player is quicker than the ball is served at, and quick enough to cross
+ * the field while the ball is on its way back, so a lost life is still a life
+ * the kid could have saved -- and the CPU is slower than the ball at its cap,
+ * so the game can be won by making the ball fast.
  */
 export const PLAYER_SPEED = 105;
 export const CPU_SPEED = 55;
 
 /** The ball starts here, gains this much per paddle hit, and never passes the cap. */
-export const BALL_SPEED_START = 60;
-export const BALL_SPEED_STEP = 5;
-export const BALL_SPEED_MAX = 92;
+export const BALL_SPEED_START = 75;
+export const BALL_SPEED_STEP = 8;
+export const BALL_SPEED_MAX = 140;
 
 /**
  * How long the CPU keeps its old aim after the ball turns its way.
@@ -76,10 +77,13 @@ export const MAX_SERVE_ANGLE = Math.PI / 6;
  * as long moves the ball twice as far in two steps rather than once in one big
  * jump. The cap is the other half of that: a tab that was hidden for a minute
  * comes back to a ball a step away from where it was, not one already past both
- * paddles.
+ * paddles. It is also what keeps the ball from skipping a paddle: at the ball's
+ * cap one step carries it BALL_SPEED_MAX * MAX_STEP_MS / 1000 units, and this
+ * cap keeps that inside a paddle's thickness, so there is no step long enough
+ * to put the ball behind a paddle it never touched.
  */
 export const FIXED_STEP_MS = 1000 / 120;
-export const MAX_STEP_MS = 50;
+export const MAX_STEP_MS = 1000 / 60;
 
 /** Which way the player is asking the paddle to go. Both keys down means neither. */
 export interface PongInput {

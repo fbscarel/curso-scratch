@@ -11,9 +11,11 @@ import {
 	FIELD_WIDTH,
 	FIXED_STEP_MS,
 	MAX_BOUNCE_ANGLE,
+	MAX_SERVE_ANGLE,
 	MAX_STEP_MS,
 	NO_EVENTS,
 	PADDLE_HEIGHT,
+	PADDLE_WIDTH,
 	PLAYER_FACE,
 	type PongEvent,
 	type PongInput,
@@ -117,7 +119,7 @@ describe("createState", () => {
 		// The serve is a draw, but a shallow one: the kid gets a ball they can
 		// actually reach with a paddle they have not moved yet.
 		expect(Math.abs(state.ball.vy)).toBeLessThanOrEqual(
-			BALL_SPEED_START * Math.sin(Math.PI / 6),
+			BALL_SPEED_START * Math.sin(MAX_SERVE_ANGLE),
 		);
 	});
 
@@ -231,6 +233,45 @@ describe("step", () => {
 		expect(state.ball.x).toBeCloseTo(CPU_FACE - BALL_RADIUS);
 		// The machine returning the ball is not a point for anybody.
 		expect(state.score).toBe(0);
+	});
+
+	it("cannot put the ball past a paddle in the longest step the rules allow", () => {
+		// The one step that could skip a paddle is the longest one, with the ball
+		// at its cap: what the ball covers in that step has to stay inside the
+		// paddle it is meant to meet, or a hit could be decided after the ball
+		// was already behind it.
+		expect(BALL_SPEED_MAX * (MAX_STEP_MS / 1000)).toBeLessThan(PADDLE_WIDTH);
+
+		// A ball at its cap one longest step from the player's face, level with
+		// the paddle.
+		const caught = createState(16);
+		caught.ball.x = PLAYER_FACE + BALL_RADIUS + 1;
+		caught.ball.y = caught.player.y;
+		caught.ball.speed = BALL_SPEED_MAX;
+		caught.ball.vx = -BALL_SPEED_MAX;
+		caught.ball.vy = 0;
+
+		expect(step(caught, MAX_STEP_MS, IDLE)).toEqual([
+			{ type: "hit", paddle: "player", score: 1 },
+		]);
+		expect(caught.ball.x).toBeCloseTo(PLAYER_FACE + BALL_RADIUS);
+		expect(caught.ball.speed).toBe(BALL_SPEED_MAX);
+
+		// The same ball with the paddle at the other end: it crosses the face and
+		// is not caught -- and one step is not enough to carry it behind the
+		// paddle it passed.
+		const missed = createState(17);
+		missed.player.y = FIELD_HEIGHT - PADDLE_HEIGHT / 2;
+		missed.ball.x = PLAYER_FACE + BALL_RADIUS + 1;
+		missed.ball.y = PADDLE_HEIGHT / 2;
+		missed.ball.speed = BALL_SPEED_MAX;
+		missed.ball.vx = -BALL_SPEED_MAX;
+		missed.ball.vy = 0;
+
+		expect(step(missed, MAX_STEP_MS, IDLE)).toBe(NO_EVENTS);
+		expect(missed.ball.x - BALL_RADIUS).toBeGreaterThan(
+			PLAYER_FACE - PADDLE_WIDTH,
+		);
 	});
 
 	it("holds the CPU still until its reaction has elapsed", () => {
