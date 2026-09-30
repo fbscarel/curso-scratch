@@ -1,0 +1,159 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/nunito";
+
+/*
+ * Sala's theme.
+ *
+ * One palette for two audiences. The kid screens are the same tokens laid out
+ * warm, round and large; the teacher's panel is the same tokens laid out the
+ * ordinary shadcn way. A second theme would be a second thing to keep in step
+ * for a difference that is really only density.
+ *
+ * The accent colours are Scratch's own block colours, declared below as
+ * `--color-scratch-*` and named in src/lib/palette.ts. That is the one palette
+ * every kid in the room already knows -- a blue tile reads as "motion" before
+ * the word under it is read -- and it is why the tiles are not a generic
+ * brand colour.
+ *
+ * The `dark` variant is DECLARED with no `.dark` block after it. Left
+ * undeclared, Tailwind's `dark:` is `@media (prefers-color-scheme: dark)`, so
+ * every `dark:` utility the shadcn components carry would key off the OPERATING
+ * SYSTEM rather than off this application's theme -- and this application has
+ * no dark mode for them to key off.
+ *
+ * Nunito comes from @fontsource-variable and not from a font CDN: there are no
+ * requests to the internet at runtime, and the lab the server runs in has none.
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+	--radius-2xl: calc(var(--radius) + 8px);
+	--radius-3xl: calc(var(--radius) + 12px);
+	--radius-4xl: calc(var(--radius) + 16px);
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary-hover: var(--primary-hover);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+
+	--font-sans: "Nunito Variable", ui-sans-serif, system-ui, sans-serif;
+
+	/* The Scratch block palette, as Tailwind utilities: bg-scratch-motion,
+	   text-scratch-events, … */
+	--color-scratch-motion: #4c97ff;
+	--color-scratch-looks: #9966ff;
+	--color-scratch-sound: #cf63cf;
+	--color-scratch-events: #ffbf00;
+	--color-scratch-control: #ffab19;
+	--color-scratch-sensing: #5cb1d6;
+	--color-scratch-operators: #59c059;
+	--color-scratch-variables: #ff8c1a;
+
+	/* The ink for a letter drawn on a block colour whose own is not dark enough
+	   for the theme's slate: `looks` and `sound` (see src/lib/palette.ts). */
+	--color-scratch-ink: #101822;
+}
+
+/*
+ * A warm off-white ground with white cards on it, rather than the stock
+ * pure-white page: a kid's screen is looked at from a metre away across a desk,
+ * and the card edge is what makes the target visible at that distance.
+ *
+ * `--primary` is Scratch's DARK motion blue with white ink. The editor's own
+ * #4c97ff carries white at only 2.93:1 -- under the 4.5:1 a 14px admin button
+ * needs and under the 3:1 even the kid screens' 20px bold ones need -- so the
+ * buttons use the shade Scratch itself pairs with the block, #3373cc, where
+ * white measures 4.70:1. `--primary-hover` is one step darker (#2f6bbd, white at
+ * 5.30:1) because shadcn's stock hover was `bg-primary/90`, an oklab mix toward
+ * the white card that LIGHTENS the button to 3.94:1 -- under the 4.5:1 bar in
+ * the state the pointer is actually on. Hover darkens here, never lightens. The
+ * block colours below stay the bright ones: the tiles and the avatars are the
+ * Scratch the kids already know.
+ *
+ * `--ring` is the focus indicator, and it is the same dark motion blue. The
+ * editor's own #4c97ff measures 2.93:1 against the white card, and at the /50
+ * alpha the shadcn components ask for it drops to 1.67:1 -- both under the 3:1
+ * WCAG 1.4.11 asks of a focus indicator. #3373cc measures 4.70:1 at full
+ * opacity, so the components that asked for `ring-ring/50` (and the tiles'
+ * `/40`, 1.73:1) now ask for the ring at full strength: a 50% #3373cc over the
+ * card is only 2.01:1, so the alpha had to go, not just the colour change.
+ */
+:root {
+	--radius: 1rem;
+	--background: #fff8ef;
+	--foreground: #24313f;
+	--card: #ffffff;
+	--card-foreground: #24313f;
+	--popover: #ffffff;
+	--popover-foreground: #24313f;
+	--primary: #3373cc;
+	--primary-foreground: #ffffff;
+	--primary-hover: #2f6bbd;
+	--secondary: #efe6d8;
+	--secondary-foreground: #24313f;
+	--muted: #f4ece1;
+	--muted-foreground: #5d6b78;
+	--accent: #ffe9c4;
+	--accent-foreground: #24313f;
+	--destructive: #b42318;
+	--border: #e8dccb;
+	--input: #e0d3c0;
+	--ring: #3373cc;
+	--chart-1: #4c97ff;
+	--chart-2: #9966ff;
+	--chart-3: #cf63cf;
+	--chart-4: #ffbf00;
+	--chart-5: #59c059;
+	--sidebar: #fff8ef;
+	--sidebar-foreground: #24313f;
+	--sidebar-primary: #4c97ff;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #efe6d8;
+	--sidebar-accent-foreground: #24313f;
+	--sidebar-border: #e8dccb;
+	--sidebar-ring: #4c97ff;
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring;
+	}
+	body {
+		@apply bg-background text-foreground;
+		font-family: var(--font-sans);
+	}
+}

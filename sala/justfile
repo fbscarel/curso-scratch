@@ -1,0 +1,47 @@
+# Sala — servidor local do curso de Scratch (rede da sala de aula)
+# Uso: just              (lista as receitas)
+#      just sala-config  (define o caminho do professor e a senha)
+#      just sala         (compila o site e sobe o servidor para a turma)
+#      just test         (roda os testes do servidor)
+#      just check        (confere tudo: servidor e site)
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+default:
+    @just --list
+
+# Cria o .venv (se faltar) e instala as dependências
+venv:
+    @test -d .venv || python3 -m venv .venv
+    .venv/bin/pip install -q -r requirements.txt
+
+# Configura o acesso do professor: escreve dados/config.toml (modo 0600)
+sala-config: venv
+    .venv/bin/python -m app.config
+
+# Instala as dependências do site (web/) com o lockfile congelado
+web-install:
+    cd web && pnpm install --frozen-lockfile
+
+# Compila o site (web/) para app/static/dist, de onde o servidor o serve
+web-build: web-install
+    cd web && pnpm build
+
+# Confere o site: biome e TypeScript
+web-lint:
+    cd web && pnpm lint && pnpm typecheck
+
+# Roda os testes do site (vitest)
+web-test:
+    cd web && pnpm test
+
+# Compila o site e sobe o servidor para a turma (imprime os endereços da rede local)
+sala: venv web-build
+    .venv/bin/python -m app.serve
+
+# Roda os testes do servidor (pytest)
+test: venv
+    .venv/bin/python -m pytest
+
+# Confere tudo: testes do servidor e site (biome, TypeScript e vitest)
+check: test web-lint web-test

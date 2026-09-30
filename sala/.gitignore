@@ -1,0 +1,10 @@
+# Nunca versionar: ambiente virtual, dados locais (config + banco + aulas), bibliotecas baixadas
+.venv/
+dados/
+vendor/
+web/node_modules/
+# Saída do build do site (web/): o servidor a gera com `just web-build`
+app/static/dist/
+*.zip
+*.db
+*.db-*
