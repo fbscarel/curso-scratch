@@ -9,8 +9,8 @@
  *
  * The unit is the field: 160 by 90, the same shape as the picture, so a position
  * here is a position on the screen. `x` grows to the right and `y` grows
- * DOWNWARD, which is how a picture is addressed; the renderer flips y into the
- * upward axis three draws with, in one place of its own.
+ * DOWNWARD, which is how a picture is addressed; the renderer draws in those
+ * coordinates as they are, so a rule and a pixel are the same thing.
  *
  * Every random choice comes from a seeded generator carried in the state, so two
  * states built from the same seed and stepped with the same input stay identical

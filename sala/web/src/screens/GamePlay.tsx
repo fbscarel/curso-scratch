@@ -25,11 +25,9 @@ import { useRevalidateOnFocus } from "@/lib/useRevalidateOnFocus";
 /**
  * The game of our own, loaded only when one is opened.
  *
- * A separate chunk and not part of this one: three.js is the biggest thing in
- * the bundle by a wide margin, and every other screen in the application --
- * including every emulated game -- would pay for it on the day the class only
- * hands work in. `import()` is what makes it a request that only a builtin game
- * makes.
+ * A separate chunk and not part of this one: the screens that only hand work in
+ * -- and every emulated game -- have no reason to load a game of their own, and
+ * `import()` is what makes it a request that only a builtin game makes.
  */
 const LazyPong = lazy(() => import("@/games/pong/PongGame"));
 

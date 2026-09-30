@@ -252,7 +252,6 @@ O código da sala é MIT (veja [`../LICENSE`](../LICENSE)). O servidor e o site 
 |---|---|---|
 | EmulatorJS 4.2.3 | GPL-3.0 | baixado pelo `just sala-emulador`, fora do repositório |
 | Capas dos jogos | de quem as fez | baixadas do libretro-thumbnails pelo `just sala-capas`, fora do repositório |
-| three.js | MIT | `web/node_modules/three` |
 | React e React DOM | MIT | `web/node_modules/react` e `.../react-dom` |
 | shadcn/ui | MIT | os componentes copiados para `web/src/components/ui/` |
 | Radix UI | MIT | `web/node_modules/radix-ui` |

@@ -14,8 +14,8 @@ import { GamePlay } from "@/screens/GamePlay";
 /**
  * The game of our own, stood in for.
  *
- * A builtin game renders three.js into a canvas and reads the keyboard, none of
- * which jsdom has: what this file is about is the screen AROUND the game -- who
+ * A builtin game draws into a canvas and reads the keyboard, none of which
+ * jsdom has: what this file is about is the screen AROUND the game -- who
  * a finished game's pontuação is filed for, and what the screen does with the
  * answer -- so the game is replaced by a button that ends one.
  */

@@ -62,7 +62,7 @@ pelo nome `sala.local`, `avahi` e `nss-mdns`. O que a sala guarda fica em `sala/
   - `distro/pkgbuilds/turbowarp-desktop-lab/patch-default-project.js` — GPL-3.0-or-later.
   - EmulatorJS 4.2.3 (o emulador de jogos da sala) — GPL-3.0 — baixado pelo `just sala-emulador` na
     configuração do servidor, não está no repositório.
-  - three.js, React, Radix UI, shadcn/ui e Tailwind CSS — MIT — dependências do site da sala
+  - React, Radix UI, shadcn/ui e Tailwind CSS — MIT — dependências do site da sala
     (`sala/web`); os componentes do shadcn/ui foram copiados para `sala/web/src/components/ui/`.
   - lucide (ícones) e canvas-confetti — ISC — dependências do site da sala.
   - Fonte Nunito — [SIL OFL 1.1](https://openfontlicense.org/) — `@fontsource-variable/nunito`,
