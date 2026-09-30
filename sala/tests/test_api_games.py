@@ -122,6 +122,37 @@ def test_a_builtin_game_is_listed_but_has_no_rom(client, monkeypatch, set_game_m
     assert client.get(f"{API}/pong/rom").status_code == 404
 
 
+def test_the_pong_of_the_catalogue_is_there_with_nothing_installed(client, roms, set_game_mode):
+    # Pong is our own page: it needs neither a ROM nor an emulator core, so it
+    # is the one game a laptop straight out of the box can already play.
+    set_game_mode(free=True)
+
+    body = client.get(API).get_json()
+
+    assert [game["id"] for game in body["games"]] == ["pong"]
+    assert body["games"][0]["type"] == "builtin" and body["games"][0]["system"] is None
+
+
+def test_pong_can_be_the_game_of_the_day(client, set_game_mode):
+    set_game_mode(active="pong")
+
+    assert [game["id"] for game in client.get(API).get_json()["games"]] == ["pong"]
+
+
+def test_pong_has_no_rom_and_no_emulator_page(client, set_game_mode):
+    set_game_mode(free=True)
+
+    assert client.get(f"{API}/pong/rom").status_code == 404
+    assert client.get(f"{API}/pong/rom/pong.zip").status_code == 404
+
+
+def test_the_admin_list_shows_pong_ready(admin_client, admin_api):
+    listed = {game["id"]: game for game in admin_client.get(f"{admin_api}/games").get_json()["games"]}
+
+    assert listed["pong"]["playable"] is True
+    assert listed["pong"]["missing"] is None and listed["pong"]["core"] is None
+
+
 # --- the ROM ---------------------------------------------------------------
 
 

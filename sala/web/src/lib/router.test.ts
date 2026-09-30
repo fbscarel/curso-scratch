@@ -24,6 +24,7 @@ describe("parseRoute", () => {
 			[`${BASE}/aulas`]: "admin-lessons",
 			[`${BASE}/presenca`]: "admin-attendance",
 			[`${BASE}/jogos`]: "admin-games",
+			[`${BASE}/placar`]: "admin-scores",
 		};
 		for (const [path, name] of Object.entries(cases)) {
 			expect(parseRoute(path, BASE).name).toBe(name);
@@ -102,6 +103,7 @@ describe("parseRoute", () => {
 			"admin-lessons",
 			"admin-attendance",
 			"admin-games",
+			"admin-scores",
 		] as const) {
 			const route = { name };
 			expect(parseRoute(hrefFor(route, BASE), BASE)).toEqual(route);

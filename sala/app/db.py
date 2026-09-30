@@ -54,6 +54,19 @@ MIGRATIONS: tuple[str, ...] = (
         created_at TEXT NOT NULL
     );
     """,
+    # 6 — scores ("Pontuações"): what an aluno scored in a jogo at an aula
+    """
+    CREATE TABLE scores (
+        id INTEGER PRIMARY KEY,
+        game_id TEXT NOT NULL,
+        lesson_number INTEGER NOT NULL REFERENCES lessons(number),
+        student_id INTEGER NOT NULL REFERENCES students(id),
+        score INTEGER NOT NULL CHECK (score >= 0),
+        method TEXT NOT NULL CHECK (method IN ('auto', 'self')),
+        approved INTEGER NOT NULL CHECK (approved IN (0, 1)),
+        created_at TEXT NOT NULL
+    );
+    """,
 )
 
 SETTING_LESSON_OVERRIDE = "lesson_override"

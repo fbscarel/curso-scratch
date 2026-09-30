@@ -91,6 +91,19 @@ export function formatSize(bytes: number): string {
 }
 
 /**
+ * pontos writes a count of points with the word that goes with it: "1 ponto",
+ * "7 pontos".
+ *
+ * Every screen that shows a pontuação -- the placar, the form a kid types one
+ * into, the teacher's list, the result card -- writes the same phrase, and one
+ * kid scoring one point is what makes the singular easy to get wrong one screen
+ * at a time.
+ */
+export function pontos(n: number): string {
+	return `${n} ${n === 1 ? "ponto" : "pontos"}`;
+}
+
+/**
  * formatDateTime renders the API's `createdAt` ("2026-09-29 14:32:05") as
  * "29/09 às 14h32".
  *

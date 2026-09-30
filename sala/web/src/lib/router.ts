@@ -29,6 +29,7 @@ export type Route =
 	| { name: "admin-attendance" }
 	| { name: "admin-uploads" }
 	| { name: "admin-games" }
+	| { name: "admin-scores" }
 	| { name: "notfound"; path: string; admin: boolean };
 
 /**
@@ -67,6 +68,8 @@ export function parseRoute(
 				return { name: "admin-uploads" };
 			case "jogos":
 				return { name: "admin-games" };
+			case "placar":
+				return { name: "admin-scores" };
 			default:
 				return { name: "notfound", path: pathname, admin: true };
 		}
@@ -132,6 +135,8 @@ export function hrefFor(route: Route, base: string = readAdminBase()): string {
 			return `${base}/entregas`;
 		case "admin-games":
 			return `${base}/jogos`;
+		case "admin-scores":
+			return `${base}/placar`;
 		case "notfound":
 			return route.path;
 	}

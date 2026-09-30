@@ -230,6 +230,17 @@ def test_a_builtin_game_has_no_emulator_page(client, monkeypatch, set_game_mode)
     assert emulator_page.GAME_NOT_FOUND_MESSAGE in response.get_data(as_text=True)
 
 
+def test_the_pong_of_the_catalogue_has_no_emulator_page_either(client, set_game_mode):
+    # It is offered in free mode and it is playable, but there is no ROM to hand
+    # to EmulatorJS: the page is the SPA's own.
+    set_game_mode(free=True)
+
+    response = play(client, "pong")
+
+    assert response.status_code == 404
+    assert emulator_page.GAME_NOT_FOUND_MESSAGE in response.get_data(as_text=True)
+
+
 # --- the emulator install --------------------------------------------------
 
 

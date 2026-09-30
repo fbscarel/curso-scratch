@@ -166,6 +166,35 @@ def add_attendance(db) -> Callable[..., None]:
 
 
 @pytest.fixture
+def add_score(db) -> Callable[..., int]:
+    """Insert a pontuação straight into the table, with the moment it was made.
+
+    The API stamps a score with the pinned `SALA_NOW`; a test that needs two
+    scores in a known order — who got there first — writes the moment itself.
+    """
+
+    def add(
+        game_id: str,
+        lesson_number: int,
+        student_id: int,
+        score: int,
+        *,
+        method: str = "self",
+        approved: int = 0,
+        created_at: str = "2026-09-29 10:00:00",
+    ) -> int:
+        cursor = db.execute(
+            "INSERT INTO scores (game_id, lesson_number, student_id, score, method, approved,"
+            " created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (game_id, lesson_number, student_id, score, method, approved, created_at),
+        )
+        db.commit()
+        return int(cursor.lastrowid)
+
+    return add
+
+
+@pytest.fixture
 def set_override(db) -> Callable[[int], None]:
     def set_it(number: int) -> None:
         set_setting(db, SETTING_LESSON_OVERRIDE, str(number))

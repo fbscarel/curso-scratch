@@ -44,6 +44,9 @@ EXPECTED_ADMIN_GUARDED = {
     ("GET", "/uploads/lesson/1.zip"),
     ("GET", "/games"),
     ("PUT", "/games/mode"),
+    ("GET", "/scores"),
+    ("PUT", "/scores/1/approval"),
+    ("DELETE", "/scores/1"),
 }
 
 # Every non-GET method of the whole app, public and admin alike; the admin ones
@@ -64,6 +67,9 @@ EXPECTED_NON_GET = {
     ("POST", "/api/uploads"),
     ("PATCH", "/uploads/1"),
     ("PUT", "/games/mode"),
+    ("POST", "/api/scores"),
+    ("PUT", "/scores/1/approval"),
+    ("DELETE", "/scores/1"),
 }
 
 

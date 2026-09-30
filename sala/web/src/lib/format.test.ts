@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatSize } from "@/lib/format";
+import { formatDateTime, formatSize, pontos } from "@/lib/format";
 
 describe("formatSize", () => {
 	it("writes a byte count the way a Brazilian kid reads it", () => {
@@ -20,6 +20,16 @@ describe("formatSize", () => {
 
 	it("never writes a negative size", () => {
 		expect(formatSize(-5)).toBe("0 B");
+	});
+});
+
+describe("pontos", () => {
+	it("uses the singular for exactly one point and the plural for anything else", () => {
+		expect(pontos(1)).toBe("1 ponto");
+		// Zero is plural in Portuguese, like any other count but one.
+		expect(pontos(0)).toBe("0 pontos");
+		expect(pontos(2)).toBe("2 pontos");
+		expect(pontos(9_999_999)).toBe("9999999 pontos");
 	});
 });
 

@@ -368,6 +368,16 @@ def playable(jogo: Jogo) -> bool:
     return missing_kind(jogo) is None
 
 
+def allows_auto_score(jogo: Jogo) -> bool:
+    """True when the game may report a score by itself.
+
+    Our own page counts the points and tells the server when the match ends; an
+    emulated game has no way of reporting what was scored inside it, so the
+    `self` report the teacher approves is what is left for those.
+    """
+    return jogo.type == TYPE_BUILTIN
+
+
 def not_ready_message(jogo: Jogo) -> str:
     """Why this game cannot be played, in pt-BR (shown to the teacher)."""
     missing = missing_kind(jogo)

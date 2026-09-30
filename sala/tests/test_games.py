@@ -11,6 +11,7 @@ import pytest
 from app import games
 
 CATALOGUE_IDS = [
+    "pong",
     "enduro",
     "space-invaders",
     "river-raid",
@@ -53,21 +54,42 @@ def load(tmp_path: Path, entries: list) -> tuple[games.Jogo, ...]:
 # --- the tracked file ------------------------------------------------------
 
 
-def test_the_tracked_catalogue_has_the_eleven_titles_of_the_course():
+def test_the_tracked_catalogue_has_the_games_of_the_course():
     assert [jogo.id for jogo in games.catalogue()] == CATALOGUE_IDS
+
+
+def test_the_tracked_pong_is_our_own_page():
+    pong = games.by_id("pong")
+
+    assert pong is not None
+    assert pong.type == games.TYPE_BUILTIN
+    assert (pong.title, pong.year, pong.maker) == ("Pong", 1972, "Atari")
+    assert pong.system is None and pong.core is None and pong.rom is None
+    assert [(control.keys, control.action) for control in pong.controls] == [
+        (("↑", "↓", "W", "S"), "mover a raquete"),
+        (("P",), "pausar"),
+    ]
+    # Nothing to install: the page is the game.
+    assert games.playable(pong) is True and games.missing_kind(pong) is None
 
 
 def test_every_entry_is_complete_and_in_portuguese():
     for jogo in games.catalogue():
-        assert jogo.type == games.TYPE_EMULATED
-        assert jogo.system in games.KNOWN_SYSTEMS
-        assert jogo.rom and not jogo.rom.startswith("/")
+        assert jogo.type in games.KNOWN_TYPES
         assert jogo.year > 1970
         assert jogo.maker
         assert jogo.about.endswith(".")
         assert jogo.controls
         for control in jogo.controls:
             assert control.keys and control.action
+
+
+def test_every_emulated_entry_points_at_a_rom_of_a_known_system():
+    for jogo in games.catalogue():
+        if jogo.type != games.TYPE_EMULATED:
+            continue
+        assert jogo.system in games.KNOWN_SYSTEMS
+        assert jogo.rom and not jogo.rom.startswith("/")
 
 
 def test_the_catalogue_defaults_to_the_tracked_file():
@@ -264,6 +286,13 @@ def test_a_builtin_game_has_no_rom_file(monkeypatch, tmp_path):
     jogo = load(tmp_path, [entry])[0]
 
     assert games.rom_file(jogo) is None
+
+
+def test_only_our_own_page_reports_its_score_itself():
+    # The emulated games have no way of telling the server their score: what is
+    # left for them is the self-report the teacher approves.
+    assert games.allows_auto_score(games.by_id("pong")) is True
+    assert games.allows_auto_score(games.by_id("enduro")) is False
 
 
 # --- playability and visibility --------------------------------------------

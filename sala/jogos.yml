@@ -6,8 +6,21 @@
 # (player 1): arrows, x = B/fire, z = A, s = Y, a = X, q/e = L/R,
 # v = SELECT (coin on the arcade), Enter = START (reset on the Atari).
 #
+# A `builtin` jogo has no `system`, `core` or `rom`: it is our own page (Pong),
+# and its `controls` are the keys that page listens to.
+#
 # This file is read and checked when the server starts: an error here shows up
 # in Portuguese naming the file and the entry, and the server does not start.
+
+- id: pong
+  title: Pong
+  type: builtin
+  year: 1972
+  maker: Atari
+  about: "Bate-bola do começo dos videogames: rebata a bola com a raquete e não deixe passar."
+  controls:
+    - {keys: ["↑", "↓", "W", "S"], action: "mover a raquete"}
+    - {keys: ["P"], action: "pausar"}
 
 - id: enduro
   title: Enduro

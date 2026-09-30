@@ -18,6 +18,20 @@ export const SYSTEM_LABELS: Record<GameSystem, string> = {
 };
 
 /**
+ * What a kid reads where a console would be named for a game that has none.
+ *
+ * Pong is ours and never ran on a console, so the badge that names a system on
+ * every other game's card says this instead. It is also the honest answer for a
+ * teacher's table row: there is no console to name.
+ */
+export const BUILTIN_LABEL = "Jogo da sala";
+
+/** systemLabel names a game's console, or says that it has none. */
+export function systemLabel(system: GameSystem | null): string {
+	return system === null ? BUILTIN_LABEL : SYSTEM_LABELS[system];
+}
+
+/**
  * What the emulator page tells its parent.
  *
  * `sala:ready` is the runtime loaded, `sala:started` is the game booted, and

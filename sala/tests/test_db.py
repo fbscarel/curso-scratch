@@ -68,6 +68,20 @@ def test_schema_has_the_expected_columns_and_keys(db):
     assert uploads["id"]["pk"] == 1
     assert all(uploads[column]["notnull"] == 1 for column in uploads if column != "id")
 
+    scores = _columns(db, "scores")
+    assert list(scores) == [
+        "id",
+        "game_id",
+        "lesson_number",
+        "student_id",
+        "score",
+        "method",
+        "approved",
+        "created_at",
+    ]
+    assert scores["id"]["pk"] == 1
+    assert all(scores[column]["notnull"] == 1 for column in scores if column != "id")
+
 
 def test_user_version_counts_the_applied_migrations(db):
     assert user_version(db) == len(MIGRATIONS) > 0

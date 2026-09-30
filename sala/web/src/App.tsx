@@ -18,6 +18,7 @@ import { Current } from "@/screens/admin/Current";
 import { GamesAdmin } from "@/screens/admin/Games";
 import { Lessons } from "@/screens/admin/Lessons";
 import { AdminLogin } from "@/screens/admin/Login";
+import { Scores } from "@/screens/admin/Scores";
 import { Students } from "@/screens/admin/Students";
 import { Uploads } from "@/screens/admin/Uploads";
 import { GamePlay } from "@/screens/GamePlay";
@@ -96,8 +97,16 @@ function KidApp({ route }: { route: Route }) {
 				{route.name === "identity" && <Identity />}
 				{route.name === "notfound" && <NotFound />}
 				{route.name === "sheets" && <Sheets />}
-				{route.name === "games" && <Games />}
-				{route.name === "game" && <GamePlay id={route.id} />}
+				{route.name === "games" && (
+					<Games student={student} onStudentChanged={session.reload} />
+				)}
+				{route.name === "game" && (
+					<GamePlay
+						id={route.id}
+						student={student}
+						onStudentChanged={session.reload}
+					/>
+				)}
 				{route.name === "home" &&
 					(session.loading ? (
 						<KidLoading />
@@ -236,6 +245,8 @@ function AdminScreen({
 			return <Uploads currentNumber={session.currentLesson?.number ?? null} />;
 		case "admin-games":
 			return <GamesAdmin />;
+		case "admin-scores":
+			return <Scores currentNumber={session.currentLesson?.number ?? null} />;
 		case "notfound":
 			return (
 				<NotFound

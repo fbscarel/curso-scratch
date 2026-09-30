@@ -3,10 +3,10 @@ import { Empty, ErrorNotice, Link } from "@/components/Bits";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listGames } from "@/lib/api";
-import { SYSTEM_LABELS } from "@/lib/games";
+import { systemLabel } from "@/lib/games";
 import { SCRATCH, type ScratchColor } from "@/lib/palette";
 import { hrefFor } from "@/lib/router";
-import type { Game, GameSystem, GamesView } from "@/lib/types";
+import type { Game, GameSystem, GamesView, Student } from "@/lib/types";
 import { useAsync } from "@/lib/useAsync";
 import { useRevalidateOnFocus } from "@/lib/useRevalidateOnFocus";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,9 @@ import { GamePlay } from "@/screens/GamePlay";
  * the colours before the words -- so each console gets one, always the same
  * one. It is a display choice and lives here rather than with the catalogue:
  * the server names consoles, it does not paint them.
+ *
+ * A game of our own has no console to take a colour from, and it wears the
+ * Scratch control block -- the orange a kid already reads as "control".
  */
 const SYSTEM_COLORS: Record<GameSystem, ScratchColor> = {
 	atari2600: "motion",
@@ -27,6 +30,11 @@ const SYSTEM_COLORS: Record<GameSystem, ScratchColor> = {
 	snes: "looks",
 	genesis: "sound",
 };
+
+/** colorOf is the block colour of a game's card. */
+function colorOf(game: Game): ScratchColor {
+	return game.system === null ? "control" : SYSTEM_COLORS[game.system];
+}
 
 /**
  * sameView says whether an answer to `GET /api/games` is the screen already on.
@@ -57,7 +65,13 @@ function sameView(current: GamesView | null, next: GamesView): boolean {
  * laptop whose ROMs are missing, or single mode with the game unplugged -- is
  * the empty state, and it says so instead of showing an empty grid.
  */
-export function Games() {
+export function Games({
+	student,
+	onStudentChanged,
+}: {
+	student: Student | null;
+	onStudentChanged: () => void;
+}) {
 	const games = useAsync<GamesView>((signal) => listGames(signal), "games");
 
 	// The teacher can change the mode while the kid is on this screen: turn the
@@ -93,7 +107,15 @@ export function Games() {
 	if (!view) return null;
 
 	const only = view.games[0];
-	if (view.mode === "single" && only) return <GamePlay id={only.id} />;
+	if (view.mode === "single" && only) {
+		return (
+			<GamePlay
+				id={only.id}
+				student={student}
+				onStudentChanged={onStudentChanged}
+			/>
+		);
+	}
 
 	return (
 		<div className="space-y-8">
@@ -136,14 +158,14 @@ function GameCard({ game }: { game: Game }) {
 			<span
 				className={cn(
 					"grid aspect-[4/3] place-items-center rounded-2xl text-foreground shadow-inner",
-					SCRATCH[SYSTEM_COLORS[game.system]],
+					SCRATCH[colorOf(game)],
 				)}
 			>
 				<Gamepad2 aria-hidden="true" className="size-14" />
 			</span>
 			<span className="font-extrabold text-2xl">{game.title}</span>
 			<span className="flex flex-wrap items-center gap-2">
-				<Badge variant="secondary">{SYSTEM_LABELS[game.system]}</Badge>
+				<Badge variant="secondary">{systemLabel(game.system)}</Badge>
 				<span className="text-lg text-muted-foreground">{game.year}</span>
 			</span>
 		</Link>

@@ -18,6 +18,7 @@ const NAV: { route: Route; label: string }[] = [
 	{ route: { name: "admin-attendance" }, label: "Presença" },
 	{ route: { name: "admin-uploads" }, label: "Entregas" },
 	{ route: { name: "admin-games" }, label: "Jogos" },
+	{ route: { name: "admin-scores" }, label: "Placar" },
 ];
 
 /**

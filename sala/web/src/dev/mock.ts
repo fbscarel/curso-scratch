@@ -55,13 +55,27 @@ interface MockUpload {
 	createdAt: string;
 }
 
+/** One pontuação, as the scores table holds it. */
+interface MockScore {
+	id: number;
+	gameId: string;
+	lessonNumber: number;
+	studentId: number;
+	score: number;
+	method: "auto" | "self";
+	approved: boolean;
+	createdAt: string;
+}
+
 /** One catalogue entry, as `jogos.yml` states it plus what is on this laptop. */
 interface MockGame {
 	id: string;
 	title: string;
 	type: "emulated" | "builtin";
-	system: "atari2600" | "arcade" | "nes" | "snes" | "genesis";
-	core: string;
+	/** `null` for a game of our own: it never ran on a console. */
+	system: "atari2600" | "arcade" | "nes" | "snes" | "genesis" | null;
+	/** `null` for a game of our own: there is no emulator behind it. */
+	core: string | null;
 	year: number;
 	maker: string;
 	about: string;
@@ -219,6 +233,26 @@ const CATALOGUE: MockGame[] = [
 		playable: false,
 		missing: "core",
 	},
+	{
+		// The one game of our own: no console, no emulator core and no ROM, so it
+		// is playable on any laptop. It is what the builtin branch of the game
+		// screen -- and the "Jogo da sala" badge -- is looked at with.
+		id: "pong",
+		title: "Pong",
+		type: "builtin",
+		system: null,
+		core: null,
+		year: 1972,
+		maker: "Atari",
+		about:
+			"Bate-bola do começo dos videogames: rebata a bola com a raquete e não deixe passar.",
+		controls: [
+			{ keys: ["↑", "↓", "W", "S"], action: "mover a raquete" },
+			{ keys: ["P"], action: "pausar" },
+		],
+		playable: true,
+		missing: null,
+	},
 ];
 
 /** The game the mock starts on, and the mode it starts in. */
@@ -255,6 +289,7 @@ let students: MockStudent[] = [];
 let lessons: MockLesson[] = [];
 let attendance = new Map<number, Set<number>>();
 let uploads: MockUpload[] = [];
+let scores: MockScore[] = [];
 let override: number | null = null;
 let signedIn = true;
 let identity: number | null = null;
@@ -297,6 +332,7 @@ function resetData(): void {
 	// active class exactly.
 	if (today !== undefined) attendance.set(today, new Set([1, 2, 4, 5]));
 	uploads = seedUploads();
+	scores = seedScores();
 	override = null;
 	signedIn = true;
 	identity = null;
@@ -361,6 +397,156 @@ function seedUploads(): MockUpload[] {
 			createdAt: at(isoDay(-21), 15, 2),
 		},
 	];
+}
+
+/**
+ * seedScores is the placar the screens are looked at with.
+ *
+ * Every rule the placar has is visible in it: a shared first place (Bruno and
+ * Davi on the same pontuação in the aula atual), a record from an earlier aula
+ * that nobody in this aula has beaten, a pontuação the game counted next to one
+ * a kid typed in, and three self-reports still waiting for the teacher -- one of
+ * them Ana's, so picking her name fills the "Esperando o professor" list.
+ */
+function seedScores(): MockScore[] {
+	const current = lessons.at(-1)?.number ?? 1;
+	const previous = lessons.at(-2)?.number ?? current;
+	const at = (day: string, hour: number, minute: number): string =>
+		`${day} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
+
+	const seeded: Omit<MockScore, "id">[] = [
+		// Enduro, aula atual: the placar the emulated game's page shows.
+		{
+			gameId: "enduro",
+			lessonNumber: current,
+			studentId: 1,
+			score: 300,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(0), 14, 10),
+		},
+		{
+			gameId: "enduro",
+			lessonNumber: current,
+			studentId: 2,
+			score: 250,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(0), 14, 12),
+		},
+		{
+			gameId: "enduro",
+			lessonNumber: current,
+			studentId: 4,
+			score: 250,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(0), 14, 14),
+		},
+		{
+			gameId: "enduro",
+			lessonNumber: current,
+			studentId: 5,
+			score: 120,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(0), 14, 16),
+		},
+		{
+			gameId: "enduro",
+			lessonNumber: current,
+			studentId: 8,
+			score: 90,
+			method: "self",
+			approved: true,
+			createdAt: at(isoDay(0), 14, 18),
+		},
+		// The all-time record, from the aula before this one.
+		{
+			gameId: "enduro",
+			lessonNumber: previous,
+			studentId: 1,
+			score: 420,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(-7), 15, 5),
+		},
+		// Pong, aula atual: a tie at the top and the same kids in the record.
+		{
+			gameId: "pong",
+			lessonNumber: current,
+			studentId: 2,
+			score: 42,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(0), 14, 20),
+		},
+		{
+			gameId: "pong",
+			lessonNumber: current,
+			studentId: 4,
+			score: 42,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(0), 14, 22),
+		},
+		{
+			gameId: "pong",
+			lessonNumber: current,
+			studentId: 1,
+			score: 30,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(0), 14, 24),
+		},
+		{
+			gameId: "pong",
+			lessonNumber: current,
+			studentId: 5,
+			score: 12,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(0), 14, 26),
+		},
+		{
+			gameId: "pong",
+			lessonNumber: previous,
+			studentId: 1,
+			score: 55,
+			method: "auto",
+			approved: true,
+			createdAt: at(isoDay(-7), 15, 20),
+		},
+		// Waiting for the teacher.
+		{
+			gameId: "pong",
+			lessonNumber: current,
+			studentId: 1,
+			score: 18,
+			method: "self",
+			approved: false,
+			createdAt: at(isoDay(0), 14, 40),
+		},
+		{
+			gameId: "pong",
+			lessonNumber: current,
+			studentId: 5,
+			score: 25,
+			method: "self",
+			approved: false,
+			createdAt: at(isoDay(0), 14, 42),
+		},
+		{
+			gameId: "enduro",
+			lessonNumber: current,
+			studentId: 2,
+			score: 300,
+			method: "self",
+			approved: false,
+			createdAt: at(isoDay(0), 14, 44),
+		},
+	];
+	return seeded.map((score, index) => ({ id: index + 1, ...score }));
 }
 
 function activeStudents(): MockStudent[] {
@@ -616,6 +802,160 @@ function adminGameRow(game: MockGame): unknown {
 }
 
 /**
+ * byRank orders pontuações the way the placar reads: best first, and a tie is
+ * decided by who got there first.
+ */
+function byRank(a: MockScore, b: MockScore): number {
+	if (a.score !== b.score) return b.score - a.score;
+	if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+	return a.id - b.id;
+}
+
+/**
+ * newestScoreFirst is the server's order for a list of pontuações: newest
+ * first, the id breaking a tie.
+ */
+function newestScoreFirst(a: MockScore, b: MockScore): number {
+	if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+	return b.id - a.id;
+}
+
+/** studentName is the name a pontuação is filed under. */
+function studentName(id: number): string {
+	const student = students.find((item) => item.id === id);
+	return student ? student.name : "Aluno removido";
+}
+
+/**
+ * scoreboardOf is `GET /api/games/<id>/scoreboard`.
+ *
+ * The three rules the server applies, applied here: the top list is the aula
+ * atual's approved pontuações with the best one per aluno, ten of them, and a
+ * tie SHARES a place (two kids on 42 are both first, the next one is third); the
+ * record is the best approved pontuação of all time; and the pending list is the
+ * session student's own self-reports of this aula.
+ */
+function scoreboardOf(gameId: string): unknown {
+	const lesson = currentLesson();
+	const approved = scores
+		.filter((score) => score.gameId === gameId && score.approved)
+		.sort(byRank);
+	const record = approved[0] ?? null;
+
+	const best = new Map<number, MockScore>();
+	if (lesson) {
+		for (const score of approved) {
+			if (score.lessonNumber !== lesson.number) continue;
+			if (!best.has(score.studentId)) best.set(score.studentId, score);
+		}
+	}
+
+	const top: unknown[] = [];
+	let rank = 0;
+	let previous: number | null = null;
+	[...best.values()].slice(0, 10).forEach((score, index) => {
+		if (previous === null || score.score !== previous) rank = index + 1;
+		previous = score.score;
+		top.push({
+			rank,
+			student: { id: score.studentId, name: studentName(score.studentId) },
+			score: score.score,
+		});
+	});
+
+	return {
+		record: record
+			? {
+					score: record.score,
+					student: {
+						id: record.studentId,
+						name: studentName(record.studentId),
+					},
+					lessonNumber: record.lessonNumber,
+				}
+			: null,
+		top,
+		myPending: scores
+			.filter(
+				(score) =>
+					score.gameId === gameId &&
+					!score.approved &&
+					score.studentId === identity &&
+					score.lessonNumber === lesson?.number,
+			)
+			.sort(newestScoreFirst)
+			.map((score) => ({
+				id: score.id,
+				score: score.score,
+				createdAt: score.createdAt,
+			})),
+	};
+}
+
+/**
+ * createScore is `POST /api/scores`, with the server's refusals.
+ *
+ * An automatic pontuação is only accepted from a game of our own -- an emulated
+ * game has no way to count one -- and it is approved as it arrives, where a
+ * self-report waits for the teacher.
+ */
+function createScore(body: unknown): Response {
+	const student = students.find((item) => item.id === identity && item.active);
+	if (!student) return failure(409, "Escolha seu nome primeiro.");
+	const lesson = currentLesson();
+	if (!lesson) return failure(409, "Nenhuma aula começou ainda.");
+
+	const gameId = text(field(body, "gameId"));
+	const game = visibleGames().find((item) => item.id === gameId);
+	if (!game) return failure(404, "Este jogo não está liberado.");
+
+	const score = Number(field(body, "score"));
+	if (!Number.isInteger(score) || score < 0 || score > 9_999_999) {
+		return failure(422, "A pontuação precisa ser um número de 0 a 9999999.");
+	}
+
+	const method = field(body, "method");
+	if (method !== "auto" && method !== "self") {
+		return failure(422, "Forma de pontuação inválida.");
+	}
+	if (method === "auto" && game.type !== "builtin") {
+		return failure(422, "Este jogo não manda a pontuação sozinho.");
+	}
+
+	const created: MockScore = {
+		id: Math.max(0, ...scores.map((item) => item.id)) + 1,
+		gameId,
+		lessonNumber: lesson.number,
+		studentId: student.id,
+		score,
+		method,
+		approved: method === "auto",
+		createdAt: nowStamp(),
+	};
+	scores = [created, ...scores];
+	return json(201, {
+		id: created.id,
+		score: created.score,
+		approved: created.approved,
+	});
+}
+
+/** adminScoreRow is one pontuação as the teacher's list carries it. */
+function adminScoreRow(score: MockScore): unknown {
+	const game = CATALOGUE.find((item) => item.id === score.gameId);
+	return {
+		id: score.id,
+		game: { id: score.gameId, title: game ? game.title : score.gameId },
+		student: { id: score.studentId, name: studentName(score.studentId) },
+		lessonNumber: score.lessonNumber,
+		score: score.score,
+		method: score.method,
+		approved: score.approved,
+		createdAt: score.createdAt,
+	};
+}
+
+/**
  * fileResponse stands in for a download.
  *
  * The bytes are a sentence rather than a real file: nothing is committed for the
@@ -688,6 +1028,15 @@ function handlePublic(
 			games: visibleGames().map(publicGame),
 		});
 	}
+	const board = /^\/games\/([a-z0-9-]+)\/scoreboard$/.exec(api);
+	if (method === "GET" && board) {
+		const id = board[1] ?? "";
+		if (!visibleGames().some((item) => item.id === id)) {
+			return failure(404, "Este jogo não está liberado.");
+		}
+		return json(200, scoreboardOf(id));
+	}
+	if (method === "POST" && api === "/scores") return createScore(body);
 	const oneGame = /^\/games\/([a-z0-9-]+)$/.exec(api);
 	if (method === "GET" && oneGame) {
 		const id = oneGame[1] ?? "";
@@ -860,6 +1209,56 @@ function handleAdmin(
 		}
 		activeGame = wanted;
 		freeMode = wantedFree;
+		return empty();
+	}
+
+	if (api === "/scores" && method === "GET") {
+		const status = query.get("status");
+		const lessonParam = query.get("lesson");
+		const gameParam = query.get("game");
+		const lessonNumber = lessonParam === null ? null : Number(lessonParam);
+		if (
+			(status !== null && status !== "pending" && status !== "approved") ||
+			(lessonNumber !== null && !Number.isInteger(lessonNumber))
+		) {
+			return failure(422, "Filtro inválido.");
+		}
+		return json(
+			200,
+			scores
+				.filter(
+					(score) =>
+						status === null || score.approved === (status === "approved"),
+				)
+				.filter(
+					(score) =>
+						lessonNumber === null || score.lessonNumber === lessonNumber,
+				)
+				.filter((score) => gameParam === null || score.gameId === gameParam)
+				.sort(newestScoreFirst)
+				.map(adminScoreRow),
+		);
+	}
+
+	const approval = /^\/scores\/(\d+)\/approval$/.exec(api);
+	if (approval && method === "PUT") {
+		const score = scores.find((item) => item.id === Number(approval[1] ?? ""));
+		if (!score) return failure(404, "Esta pontuação não existe.");
+		const approved = field(body, "approved");
+		if (typeof approved !== "boolean") {
+			return failure(422, "Confirmação inválida.");
+		}
+		score.approved = approved;
+		return empty();
+	}
+
+	const scoreEntry = /^\/scores\/(\d+)$/.exec(api);
+	if (scoreEntry && method === "DELETE") {
+		const id = Number(scoreEntry[1] ?? "");
+		if (!scores.some((item) => item.id === id)) {
+			return failure(404, "Esta pontuação não existe.");
+		}
+		scores = scores.filter((item) => item.id !== id);
 		return empty();
 	}
 

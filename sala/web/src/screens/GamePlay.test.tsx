@@ -1,9 +1,54 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { forgetCsrf, rememberCsrf } from "@/lib/api";
-import type { Game } from "@/lib/types";
+import type { Game, Scoreboard, Student } from "@/lib/types";
 import { GamePlay } from "@/screens/GamePlay";
+
+/**
+ * The game of our own, stood in for.
+ *
+ * A builtin game renders three.js into a canvas and reads the keyboard, none of
+ * which jsdom has: what this file is about is the screen AROUND the game -- who
+ * a finished game's pontuação is filed for, and what the screen does with the
+ * answer -- so the game is replaced by a button that ends one.
+ */
+vi.mock("@/games/pong/PongGame", () => {
+	const Over = ({
+		onGameOver,
+		onStart,
+	}: {
+		onGameOver: (score: number) => void;
+		onStart?: () => void;
+	}) => (
+		<>
+			<button type="button" onClick={() => onStart?.()}>
+				jogar de novo
+			</button>
+			<button type="button" onClick={() => onGameOver(7)}>
+				fim de jogo de mentira
+			</button>
+			<button type="button" onClick={() => onGameOver(1)}>
+				fim de jogo de um ponto
+			</button>
+		</>
+	);
+	return { PongGame: Over, default: Over };
+});
+
+/** The burst a finished game earns, which jsdom has no canvas for. */
+vi.mock("canvas-confetti", () => {
+	const celebrate = vi.fn();
+	return {
+		default: Object.assign(celebrate, { create: vi.fn(() => celebrate) }),
+	};
+});
 
 const ENDURO: Game = {
 	id: "enduro",
@@ -15,6 +60,22 @@ const ENDURO: Game = {
 	about: "Corrida de resistência: ultrapasse os carros dia e noite.",
 	controls: [{ keys: ["←", "→"], action: "virar" }],
 };
+
+const PONG: Game = {
+	id: "pong",
+	title: "Pong",
+	type: "builtin",
+	system: null,
+	year: 1972,
+	maker: "Atari",
+	about: "Rebata a bola com a sua raquete.",
+	controls: [{ keys: ["↑", "↓"], action: "mover a raquete" }],
+};
+
+const ANA: Student = { id: 1, name: "Ana Teste" };
+const BRUNO: Student = { id: 2, name: "Bruno Teste" };
+
+const EMPTY_BOARD: Scoreboard = { record: null, top: [], myPending: [] };
 
 function jsonResponse(status: number, body: unknown): Response {
 	return new Response(JSON.stringify(body), {
@@ -32,17 +93,45 @@ function jsonResponse(status: number, body: unknown): Response {
  */
 describe("the game page", () => {
 	let fetchMock: Mock;
+	/** What `POST /api/scores` was called with, in order. */
+	let posted: unknown[];
 
 	beforeEach(() => {
-		fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, ENDURO));
-		vi.stubGlobal("fetch", fetchMock);
+		posted = [];
 		rememberCsrf("tok-1");
+		fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		fetchMock.mockImplementation((path: string, init?: RequestInit) => {
+			if (String(path).endsWith("/scoreboard")) {
+				return jsonResponse(200, EMPTY_BOARD);
+			}
+			if (path === "/api/games/pong") return jsonResponse(200, PONG);
+			if (path === "/api/games/enduro") return jsonResponse(200, ENDURO);
+			if (path === "/api/students") {
+				return jsonResponse(200, [ANA, BRUNO]);
+			}
+			if (path === "/api/identity" && init?.method === "PUT") {
+				return new Response(null, { status: 204 });
+			}
+			if (path === "/api/scores" && init?.method === "POST") {
+				posted.push(JSON.parse(String(init.body)));
+				return jsonResponse(201, { id: 1, score: 7, approved: true });
+			}
+			return jsonResponse(404, { error: `pedido inesperado: ${path}` });
+		});
 	});
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
 		forgetCsrf();
 	});
+
+	/** renderGame is the screen as the application mounts it, with a name picked. */
+	function renderGame(id: string, student: Student | null = ANA) {
+		return render(
+			<GamePlay id={id} student={student} onStudentChanged={() => undefined} />,
+		);
+	}
 
 	/** post says what the emulator page would say, from the frame it says it from. */
 	async function post(data: unknown, from: MessageEventSource | null) {
@@ -69,7 +158,7 @@ describe("the game page", () => {
 	}
 
 	it("embeds the emulator page and says what it is doing until the game boots", async () => {
-		render(<GamePlay id="enduro" />);
+		renderGame("enduro");
 
 		expect(await screen.findByRole("heading", { name: "Enduro" })).toBeTruthy();
 		const frame = await theFrame();
@@ -88,7 +177,7 @@ describe("the game page", () => {
 	});
 
 	it("takes the overlay off when the game starts, and puts it back on a boot", async () => {
-		render(<GamePlay id="enduro" />);
+		renderGame("enduro");
 		const frame = await theFrame();
 		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
 
@@ -108,7 +197,7 @@ describe("the game page", () => {
 	});
 
 	it("believes nothing from another origin, or from another frame", async () => {
-		render(<GamePlay id="enduro" />);
+		renderGame("enduro");
 		const frame = await theFrame();
 		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
 
@@ -133,7 +222,7 @@ describe("the game page", () => {
 	});
 
 	it("shows the pt-BR sentence the page sent when the game cannot start", async () => {
-		render(<GamePlay id="enduro" />);
+		renderGame("enduro");
 		const frame = await theFrame();
 		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
 
@@ -157,7 +246,7 @@ describe("the game page", () => {
 		// The page reports every rejection, including fetches nothing depends
 		// on, so an error can arrive and the game can still boot. A red card
 		// over a game the kid is playing would be a lie.
-		render(<GamePlay id="enduro" />);
+		renderGame("enduro");
 		const frame = await theFrame();
 		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
 
@@ -179,7 +268,7 @@ describe("the game page", () => {
 	});
 
 	it("shows the empty state when the game stops being visible behind the screen", async () => {
-		render(<GamePlay id="enduro" />);
+		renderGame("enduro");
 		const frame = await theFrame();
 		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
 
@@ -199,7 +288,7 @@ describe("the game page", () => {
 	});
 
 	it("leaves the running game alone when the kid comes back to it", async () => {
-		render(<GamePlay id="enduro" />);
+		renderGame("enduro");
 		const frame = await theFrame();
 		await waitFor(() => expect(frame.contentWindow).toBeTruthy());
 
@@ -216,10 +305,240 @@ describe("the game page", () => {
 		fetchMock.mockResolvedValue(
 			jsonResponse(404, { error: "Este jogo não está liberado." }),
 		);
-		render(<GamePlay id="nao-existe" />);
+		renderGame("nao-existe");
 
 		expect(
 			await screen.findByText(/Este jogo não está liberado agora/),
 		).toBeTruthy();
+	});
+});
+
+/**
+ * The game of our own, and what a finished one does to the placar.
+ *
+ * The game renders here instead of an iframe, reports its own end, and its
+ * pontuação is filed as an automatic one -- which is the whole difference from
+ * an emulated game, where a kid types the number in and waits for the teacher.
+ */
+describe("a game of our own", () => {
+	let fetchMock: Mock;
+	/** What `POST /api/scores` was called with, in order. */
+	let posted: unknown[];
+
+	beforeEach(() => {
+		posted = [];
+		rememberCsrf("tok-1");
+		fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		fetchMock.mockImplementation((path: string, init?: RequestInit) => {
+			if (String(path).endsWith("/scoreboard")) {
+				return jsonResponse(200, EMPTY_BOARD);
+			}
+			if (path === "/api/games/pong") return jsonResponse(200, PONG);
+			if (path === "/api/students") return jsonResponse(200, [ANA, BRUNO]);
+			if (path === "/api/identity" && init?.method === "PUT") {
+				return new Response(null, { status: 204 });
+			}
+			if (path === "/api/scores" && init?.method === "POST") {
+				posted.push(JSON.parse(String(init.body)));
+				return jsonResponse(201, { id: 1, score: 7, approved: true });
+			}
+			return jsonResponse(404, { error: `pedido inesperado: ${path}` });
+		});
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		forgetCsrf();
+	});
+
+	function callsTo(path: string): number {
+		return fetchMock.mock.calls.filter((call) => call[0] === path).length;
+	}
+
+	it("renders the game in the main area instead of an emulator frame", async () => {
+		render(
+			<GamePlay id="pong" student={ANA} onStudentChanged={() => undefined} />,
+		);
+
+		expect(await screen.findByRole("heading", { name: "Pong" })).toBeTruthy();
+		expect(
+			await screen.findByRole("button", { name: "fim de jogo de mentira" }),
+		).toBeTruthy();
+		expect(document.querySelector("iframe")).toBeNull();
+		// No console to name, so the badge says whose game this is.
+		expect(screen.getByText("Jogo da sala")).toBeTruthy();
+		expect(screen.getByText("1972 · Atari")).toBeTruthy();
+		expect(screen.queryByText("Tela cheia")).toBeNull();
+	});
+
+	it("files the pontuação of a finished game once, and reads the placar again", async () => {
+		render(
+			<GamePlay id="pong" student={ANA} onStudentChanged={() => undefined} />,
+		);
+		const over = await screen.findByRole("button", {
+			name: "fim de jogo de mentira",
+		});
+		expect(callsTo("/api/games/pong/scoreboard")).toBe(1);
+
+		fireEvent.click(over);
+
+		expect(await screen.findByText("Sua pontuação")).toBeTruthy();
+		expect(screen.getByText("7 pontos")).toBeTruthy();
+		await waitFor(() =>
+			expect(posted).toEqual([{ gameId: "pong", score: 7, method: "auto" }]),
+		);
+		expect(
+			await screen.findByText("Sua pontuação já está no placar!"),
+		).toBeTruthy();
+		// The pontuação is on the board now, so the panel reads it again.
+		await waitFor(() => expect(callsTo("/api/games/pong/scoreboard")).toBe(2));
+		// Once: a second write would be a second row for the same game.
+		expect(posted).toHaveLength(1);
+	});
+
+	it("writes one ponto in the singular, and pontos otherwise", async () => {
+		render(
+			<GamePlay id="pong" student={ANA} onStudentChanged={() => undefined} />,
+		);
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "fim de jogo de um ponto" }),
+		);
+
+		expect(await screen.findByText("1 ponto")).toBeTruthy();
+		expect(screen.queryByText("1 pontos")).toBeNull();
+
+		fireEvent.click(
+			screen.getByRole("button", { name: "fim de jogo de mentira" }),
+		);
+
+		expect(await screen.findByText("7 pontos")).toBeTruthy();
+	});
+
+	it("asks who the kid is and files the pontuação after they pick a name", async () => {
+		render(
+			<GamePlay id="pong" student={null} onStudentChanged={() => undefined} />,
+		);
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "fim de jogo de mentira" }),
+		);
+
+		expect(
+			await screen.findByText(/Quem é você\? Escolha o seu nome/),
+		).toBeTruthy();
+		// Nothing is filed until there is a name to file it under.
+		expect(posted).toEqual([]);
+
+		fireEvent.click(await screen.findByRole("button", { name: /Bruno Teste/ }));
+
+		await waitFor(() =>
+			expect(posted).toEqual([{ gameId: "pong", score: 7, method: "auto" }]),
+		);
+		const [, init] = fetchMock.mock.calls.find(
+			(call) => call[0] === "/api/identity",
+		) as [string, RequestInit];
+		expect(init.method).toBe("PUT");
+		expect(JSON.parse(String(init.body))).toEqual({ studentId: BRUNO.id });
+	});
+
+	it("keeps the pontuação on the screen when filing it is refused", async () => {
+		// The server refuses an automatic pontuação for a game that cannot count
+		// its own, and the kid has just played: the number stays where they can
+		// see it, with a way to try again.
+		fetchMock.mockImplementation((path: string, init?: RequestInit) => {
+			if (String(path).endsWith("/scoreboard")) {
+				return jsonResponse(200, EMPTY_BOARD);
+			}
+			if (path === "/api/games/pong") return jsonResponse(200, PONG);
+			if (path === "/api/scores" && init?.method === "POST") {
+				return jsonResponse(422, {
+					error: "Este jogo não manda a pontuação sozinho.",
+				});
+			}
+			return jsonResponse(404, { error: `pedido inesperado: ${path}` });
+		});
+
+		render(
+			<GamePlay id="pong" student={ANA} onStudentChanged={() => undefined} />,
+		);
+		fireEvent.click(
+			await screen.findByRole("button", { name: "fim de jogo de mentira" }),
+		);
+
+		expect(
+			await screen.findByText("Este jogo não manda a pontuação sozinho."),
+		).toBeTruthy();
+		expect(screen.getByText("7 pontos")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+	});
+
+	it("takes the finished game's card off the screen when a new round starts", async () => {
+		render(
+			<GamePlay id="pong" student={ANA} onStudentChanged={() => undefined} />,
+		);
+		fireEvent.click(
+			await screen.findByRole("button", { name: "fim de jogo de mentira" }),
+		);
+		expect(
+			await screen.findByText("Sua pontuação já está no placar!"),
+		).toBeTruthy();
+
+		fireEvent.click(screen.getByRole("button", { name: "jogar de novo" }));
+
+		// That number belongs to the game that is over; the one starting now has
+		// scored nothing yet, and the card over it would read as this game's.
+		await waitFor(() => expect(screen.queryByText("Sua pontuação")).toBeNull());
+		expect(screen.queryByText("7 pontos")).toBeNull();
+	});
+
+	it("keeps a pontuação still waiting for a name when a new round starts", async () => {
+		render(
+			<GamePlay id="pong" student={null} onStudentChanged={() => undefined} />,
+		);
+		fireEvent.click(
+			await screen.findByRole("button", { name: "fim de jogo de mentira" }),
+		);
+		expect(
+			await screen.findByText(/Quem é você\? Escolha o seu nome/),
+		).toBeTruthy();
+
+		fireEvent.click(screen.getByRole("button", { name: "jogar de novo" }));
+
+		// The card is the only place that number exists until it is filed.
+		expect(screen.getByText("7 pontos")).toBeTruthy();
+		expect(screen.getByText(/Quem é você\? Escolha o seu nome/)).toBeTruthy();
+	});
+
+	it("keeps a pontuação that could not be filed when a new round starts", async () => {
+		fetchMock.mockImplementation((path: string, init?: RequestInit) => {
+			if (String(path).endsWith("/scoreboard")) {
+				return jsonResponse(200, EMPTY_BOARD);
+			}
+			if (path === "/api/games/pong") return jsonResponse(200, PONG);
+			if (path === "/api/scores" && init?.method === "POST") {
+				return jsonResponse(422, {
+					error: "Este jogo não manda a pontuação sozinho.",
+				});
+			}
+			return jsonResponse(404, { error: `pedido inesperado: ${path}` });
+		});
+
+		render(
+			<GamePlay id="pong" student={ANA} onStudentChanged={() => undefined} />,
+		);
+		fireEvent.click(
+			await screen.findByRole("button", { name: "fim de jogo de mentira" }),
+		);
+		expect(
+			await screen.findByText("Este jogo não manda a pontuação sozinho."),
+		).toBeTruthy();
+
+		fireEvent.click(screen.getByRole("button", { name: "jogar de novo" }));
+
+		// Still the only copy of that number, and still with a way to try again.
+		expect(screen.getByText("7 pontos")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
 	});
 });

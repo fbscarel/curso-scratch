@@ -1,16 +1,21 @@
 import { readAdminBase } from "@/lib/adminBase";
 import type {
 	AdminGames,
+	AdminScore,
 	AdminSession,
 	AdminStudent,
 	AdminUpload,
 	Attendance,
+	CreatedScore,
 	Game,
 	GamesView,
 	Lesson,
 	LessonSheets,
 	OverrideView,
 	PublicSession,
+	Scoreboard,
+	ScoreMethod,
+	ScoreStatus,
 	Student,
 	Upload,
 } from "@/lib/types";
@@ -492,6 +497,43 @@ export function getGame(id: string, signal?: AbortSignal): Promise<Game> {
 	);
 }
 
+/**
+ * getScoreboard is one game's placar: the aula's top ten, the all-time record,
+ * and what the session's student is still waiting on.
+ *
+ * The whole panel is one request because it is one thing on the screen: three
+ * separate calls would show a record from one moment next to a top list from
+ * another, and the panel refreshes on a timer.
+ */
+export function getScoreboard(
+	id: string,
+	signal?: AbortSignal,
+): Promise<Scoreboard> {
+	return request<Scoreboard>(
+		`${API_PREFIX}/games/${encodeURIComponent(id)}/scoreboard`,
+		optionalSignal(signal),
+	);
+}
+
+/**
+ * postScore files one pontuação for the session's student.
+ *
+ * The answer says whether it is already on the placar: an automatic pontuação is
+ * approved by the server as it arrives, and a self-reported one waits for the
+ * teacher. The screen prints the difference rather than guessing it from the
+ * method it sent.
+ */
+export function postScore(body: {
+	gameId: string;
+	score: number;
+	method: ScoreMethod;
+}): Promise<CreatedScore> {
+	return request<CreatedScore>(`${API_PREFIX}/scores`, {
+		method: "POST",
+		body,
+	});
+}
+
 // ---------------------------------------------------------------------------
 // Admin API
 // ---------------------------------------------------------------------------
@@ -682,4 +724,46 @@ export function putGamesMode(mode: {
 	freeMode: boolean;
 }): Promise<void> {
 	return mutate(adminPath("/games/mode"), { method: "PUT", body: mode });
+}
+
+/**
+ * listAdminScores is the pontuações the teacher has to look at.
+ *
+ * Every filter is a server query, and an absent one is an absent query
+ * parameter: `status` decides which of the two lists this is, and `lesson` and
+ * `game` narrow it further.
+ */
+export function listAdminScores(
+	filter: { status?: ScoreStatus; lesson?: number; game?: string },
+	signal?: AbortSignal,
+): Promise<AdminScore[]> {
+	const query = new URLSearchParams();
+	if (filter.status !== undefined) query.set("status", filter.status);
+	if (filter.lesson !== undefined) query.set("lesson", String(filter.lesson));
+	if (filter.game !== undefined) query.set("game", filter.game);
+	const search = query.size > 0 ? `?${query.toString()}` : "";
+	return request<AdminScore[]>(
+		adminPath(`/scores${search}`),
+		optionalSignal(signal),
+	);
+}
+
+/**
+ * setScoreApproval confirms a self-reported pontuação, which is what puts it on
+ * the placar the kids see.
+ */
+export function setScoreApproval(id: number, approved: boolean): Promise<void> {
+	return mutate(adminPath(`/scores/${id}/approval`), {
+		method: "PUT",
+		body: { approved },
+	});
+}
+
+/**
+ * deleteScore is the refusal, and it is also how an approved pontuação is taken
+ * off the placar: a self-report the teacher does not believe in, or a score
+ * filed by mistake.
+ */
+export function deleteScore(id: number): Promise<void> {
+	return mutate(adminPath(`/scores/${id}`), { method: "DELETE" });
 }

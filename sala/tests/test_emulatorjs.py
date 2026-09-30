@@ -87,6 +87,9 @@ def test_the_manifest_covers_the_common_files_and_every_core_of_the_catalogue():
     ):
         assert name in manifest
     for jogo in games.catalogue():
+        # A builtin game is our own page: it has no core to install.
+        if jogo.type != games.TYPE_EMULATED:
+            continue
         assert f"cores/reports/{jogo.core}.json" in manifest
         assert f"cores/{jogo.core}-wasm.data" in manifest
         assert f"cores/{jogo.core}-legacy-wasm.data" in manifest

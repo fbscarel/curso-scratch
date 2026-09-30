@@ -1,5 +1,5 @@
 """Public API (`/api`): the session, the student list, "Quem é você?", the
-entregas of the student of this session and the games of the day.
+entregas of the student of this session, the games of the day and their placar.
 
 No authentication: the lab PCs only pick a name. Every non-GET request still
 needs the session's CSRF token (see `auth.guard`).
@@ -11,7 +11,7 @@ import sqlite3
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file, session
 
-from . import auth, games, uploads
+from . import auth, games, scores, uploads
 from .db import get_db
 from .lessons import current_lesson, today
 from .sheets import sheets_payload
@@ -180,7 +180,7 @@ def sheets_list() -> Response:
 # --- games -----------------------------------------------------------------
 
 
-def _visible_game(connection: sqlite3.Connection, game_id: str) -> games.Jogo:
+def _visible_game(connection: sqlite3.Connection, game_id: str | None) -> games.Jogo:
     """One game a kid may see right now, or 404."""
     jogo = games.by_id(game_id)
     if jogo is None or jogo not in games.visible_games(connection):
@@ -223,3 +223,58 @@ def game_rom(game_id: str, filename: str | None = None) -> Response:
     # the file, and the kid must get what is on disk now.
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+# --- pontuações ------------------------------------------------------------
+
+
+@bp.get("/games/<game_id>/scoreboard")
+def game_scoreboard(game_id: str) -> Response:
+    """The placar of one visible game: the record, the aula's top, my waiting ones."""
+    connection = get_db()
+    jogo = _visible_game(connection, game_id)
+    lesson = current_lesson(connection, today())
+    student = current_student(connection)
+    return jsonify(
+        scores.scoreboard(
+            connection,
+            game_id=jogo.id,
+            lesson_number=None if lesson is None else lesson["number"],
+            student_id=None if student is None else student["id"],
+        )
+    )
+
+
+@bp.post("/scores")
+def score_create() -> Response:
+    """Take one pontuação of the kid's session and file it under the current aula.
+
+    The game has to be one the kid can see right now: a score of a game the mode
+    does not offer (or whose ROM is missing) would land in a placar nobody can
+    open. A score the game reported itself is approved on arrival; one the kid
+    typed waits for the teacher.
+    """
+    connection = get_db()
+    student = _require_student(connection)
+    lesson = current_lesson(connection, today())
+    if lesson is None:
+        raise auth.ApiError(409, NO_LESSON_MESSAGE)
+    data = auth.json_body()
+    raw_id = data.get("gameId")
+    jogo = _visible_game(connection, raw_id if isinstance(raw_id, str) else None)
+    score = scores.check_score(data.get("score"))
+    method = scores.check_method(data.get("method"))
+    if method == scores.METHOD_AUTO and not games.allows_auto_score(jogo):
+        raise auth.ApiError(422, scores.AUTO_REFUSED_MESSAGE)
+    moment = uploads.now()
+    score_id = scores.insert(
+        connection,
+        game_id=jogo.id,
+        lesson_number=lesson["number"],
+        student_id=student["id"],
+        score=score,
+        method=method,
+        created_at=uploads.created_at(moment),
+    )
+    connection.commit()
+    return jsonify(id=score_id, score=score, approved=method == scores.METHOD_AUTO), 201

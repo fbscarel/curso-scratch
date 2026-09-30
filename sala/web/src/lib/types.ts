@@ -165,12 +165,16 @@ export interface GameControl {
  *
  * `about` is one pt-BR line and `controls` is short by construction: this is
  * what a screen prints, not the catalogue's whole entry.
+ *
+ * `system` is the console, and it is `null` for a game of our own: a builtin
+ * entry never ran on a console, so a screen that printed a console badge for it
+ * would be inventing one. `type` is what says which kind of game this is.
  */
 export interface Game {
 	id: string;
 	title: string;
 	type: GameType;
-	system: GameSystem;
+	system: GameSystem | null;
 	year: number;
 	maker: string;
 	about: string;
@@ -198,13 +202,19 @@ export interface GamesView {
  */
 export type GameMissing = "rom" | "core";
 
-/** One catalogue entry as the teacher's screen carries it. */
+/**
+ * One catalogue entry as the teacher's screen carries it.
+ *
+ * `core` and `system` are absent for a builtin entry: there is no emulator core
+ * behind our own Pong and no console it ran on, and the table has to be able to
+ * say that rather than print an empty cell.
+ */
 export interface AdminGame {
 	id: string;
 	title: string;
 	type: GameType;
-	system: GameSystem;
-	core: string;
+	system: GameSystem | null;
+	core: string | null;
 	year: number;
 	maker: string;
 	playable: boolean;
@@ -221,4 +231,77 @@ export interface AdminGames {
 	activeGame: string | null;
 	freeMode: boolean;
 	games: AdminGame[];
+}
+
+// ---------------------------------------------------------------------------
+// Placar
+// ---------------------------------------------------------------------------
+
+/**
+ * How a pontuação reached the placar.
+ *
+ * `auto` is the game itself reporting it (our Pong, and later the emulator's
+ * memory), and it is shown at once; `self` is the kid typing it in, and it waits
+ * for the teacher.
+ */
+export type ScoreMethod = "auto" | "self";
+
+/** One row of the placar's top list. */
+export interface ScoreRank {
+	/**
+	 * The position, from the server, so that a tie is one position and not two.
+	 * Two kids on 40 pontos are both in first place, and the next one is third.
+	 */
+	rank: number;
+	student: Student;
+	score: number;
+}
+
+/** The best approved pontuação of all time, and who made it. */
+export interface ScoreRecord {
+	score: number;
+	student: Student;
+	lessonNumber: number;
+}
+
+/** A pontuação the session's student typed in and the teacher has not answered. */
+export interface PendingScore {
+	id: number;
+	score: number;
+	createdAt: string;
+}
+
+/**
+ * `GET /api/games/<id>/scoreboard`.
+ *
+ * `top` is the AULA ATUAL's ten best approved pontuações (one per aluno),
+ * `record` is the all-time best, and `myPending` is the session student's own
+ * self-reports of this aula that nobody has confirmed yet.
+ */
+export interface Scoreboard {
+	record: ScoreRecord | null;
+	top: ScoreRank[];
+	myPending: PendingScore[];
+}
+
+/** `POST /api/scores`: the pontuação that was filed, and whether it is shown. */
+export interface CreatedScore {
+	id: number;
+	score: number;
+	approved: boolean;
+}
+
+/** The two states a score can be in, as the teacher filters by them. */
+export type ScoreStatus = "pending" | "approved";
+
+/** One pontuação as the teacher's list carries it. */
+export interface AdminScore {
+	id: number;
+	game: { id: string; title: string };
+	student: Student;
+	lessonNumber: number;
+	score: number;
+	method: ScoreMethod;
+	approved: boolean;
+	createdAt: string;
 }

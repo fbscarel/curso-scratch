@@ -1,4 +1,3 @@
-import confetti from "canvas-confetti";
 import {
 	CheckCircle2,
 	FileUp,
@@ -10,6 +9,7 @@ import { type DragEvent, useEffect, useRef, useState } from "react";
 import { Link } from "@/components/Bits";
 import { Button } from "@/components/ui/button";
 import { type UploadProgress, uploadFile } from "@/lib/api";
+import { celebrate } from "@/lib/celebrate";
 import { cn } from "@/lib/utils";
 
 /** What the file picker offers, and what the chips below the drop zone say. */
@@ -320,33 +320,4 @@ function ItemCard({ item }: { item: UploadItem }) {
 function messageOf(error: unknown): string {
 	if (error instanceof Error && error.message !== "") return error.message;
 	return "Não foi possível enviar este arquivo. Tente de novo.";
-}
-
-/**
- * celebrate is the small burst a saved file earns.
- *
- * `disableForReducedMotion` is the whole accessibility story here: a kid who
- * asked their system for less animation gets none, and the green card is the
- * part that says it worked.
- *
- * The instance is built here and not taken from the library's default one, which
- * animates from a `blob:` Web Worker: the SPA's policy (`app/spa.py`, SPA_CSP)
- * allows no blob workers -- nothing else in the bundle needs one, and the page's
- * whole point is that it reaches nothing outside this laptop -- so the default
- * instance's worker would be refused with a console error on every saved file.
- * On the main thread the burst lasts a second and nothing else is competing for
- * it at the moment a kid presses Salvar.
- */
-const celebration = confetti.create(undefined, {
-	resize: true,
-	useWorker: false,
-});
-
-function celebrate(): void {
-	celebration({
-		particleCount: 80,
-		spread: 70,
-		origin: { y: 0.7 },
-		disableForReducedMotion: true,
-	});
 }

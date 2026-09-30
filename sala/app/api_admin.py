@@ -1,5 +1,6 @@
-"""Admin API (`<admin>/api`): login, students, lessons, override, attendance and
-the entregas (list, download, move between aulas, lesson zip).
+"""Admin API (`<admin>/api`): login, students, lessons, override, attendance, the
+entregas (list, download, move between aulas, lesson zip) and the pontuações
+(approve or remove a self-reported score).
 
 Mounted at `config.admin_path + "/api"`; everything except `session` and `login`
 needs the admin session (see `auth.admin_required`), and every non-GET request
@@ -14,7 +15,7 @@ from datetime import date
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
-from . import auth, games, uploads
+from . import auth, games, scores, uploads
 from .db import SETTING_LESSON_OVERRIDE, delete_setting, get_db, set_setting
 from .lessons import current_lesson, get_lesson, lesson_override, today
 
@@ -25,10 +26,12 @@ bp = Blueprint("api_admin", __name__)
 STUDENT_REFERENCES: tuple[tuple[str, str], ...] = (
     ("attendance", "student_id"),
     ("uploads", "student_id"),
+    ("scores", "student_id"),
 )
 LESSON_REFERENCES: tuple[tuple[str, str], ...] = (
     ("attendance", "lesson_number"),
     ("uploads", "lesson_number"),
+    ("scores", "lesson_number"),
 )
 
 MAX_NAME_LENGTH = 60
@@ -218,7 +221,8 @@ def student_delete(student_id: int) -> Response:
     student = _student_or_404(connection, student_id)
     if _is_referenced(connection, STUDENT_REFERENCES, student_id):
         raise auth.ApiError(
-            409, f"{student['name']} tem presença ou entregas: desative em vez de excluir."
+            409,
+            f"{student['name']} tem presença, entregas ou pontuações: desative em vez de excluir.",
         )
     connection.execute("DELETE FROM students WHERE id = ?", (student_id,))
     connection.commit()
@@ -267,7 +271,9 @@ def lesson_delete(number: int) -> Response:
     connection = get_db()
     _lesson_or_404(connection, number)
     if _is_referenced(connection, LESSON_REFERENCES, number):
-        raise auth.ApiError(409, f"A aula {number} tem presença ou entregas: não dá para excluir.")
+        raise auth.ApiError(
+            409, f"A aula {number} tem presença, entregas ou pontuações: não dá para excluir."
+        )
     connection.execute("DELETE FROM lessons WHERE number = ?", (number,))
     connection.commit()
     return Response(status=204)
@@ -533,5 +539,78 @@ def games_mode() -> Response:
             delete_setting(connection, games.SETTING_ACTIVE_GAME)
         else:
             set_setting(connection, games.SETTING_ACTIVE_GAME, active)
+    connection.commit()
+    return Response(status=204)
+
+
+# --- pontuações ------------------------------------------------------------
+
+
+def _score_status() -> str | None:
+    """The `?status=` filter, or None when it was not sent; 422 when unknown."""
+    raw = request.args.get("status")
+    if raw is None or not raw.strip():
+        return None
+    if raw not in scores.STATUSES:
+        raise auth.ApiError(422, BAD_FILTER_MESSAGE)
+    return raw
+
+
+def _score_or_404(connection: sqlite3.Connection, score_id: int) -> sqlite3.Row:
+    row = connection.execute(f"{scores.SCORE_SELECT} WHERE s.id = ?", (score_id,)).fetchone()
+    if row is None:
+        raise auth.ApiError(404, scores.NOT_FOUND_MESSAGE)
+    return row
+
+
+@bp.get("/scores")
+@auth.admin_required
+def scores_list() -> Response:
+    """The pontuações, newest first, filtered by status, aula and jogo."""
+    connection = get_db()
+    conditions: list[str] = []
+    parameters: list[object] = []
+    status = _score_status()
+    if status is not None:
+        conditions.append("s.approved = ?")
+        parameters.append(1 if status == scores.STATUS_APPROVED else 0)
+    lesson = _optional_id("lesson")
+    if lesson is not None:
+        conditions.append("s.lesson_number = ?")
+        parameters.append(lesson)
+    game = request.args.get("game")
+    if game is not None and game.strip():
+        conditions.append("s.game_id = ?")
+        parameters.append(game.strip())
+    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+    rows = connection.execute(
+        f"{scores.SCORE_SELECT}{where} ORDER BY s.created_at DESC, s.id DESC", parameters
+    ).fetchall()
+    return jsonify([scores.admin_payload(row) for row in rows])
+
+
+@bp.put("/scores/<int:score_id>/approval")
+@auth.admin_required
+def score_approval(score_id: int) -> Response:
+    """Approve a self-reported pontuação — or take the approval back."""
+    connection = get_db()
+    _score_or_404(connection, score_id)
+    approved = auth.json_body().get("approved")
+    if not isinstance(approved, bool):
+        raise auth.ApiError(422, "O campo 'approved' precisa ser true ou false.")
+    connection.execute(
+        "UPDATE scores SET approved = ? WHERE id = ?", (1 if approved else 0, score_id)
+    )
+    connection.commit()
+    return Response(status=204)
+
+
+@bp.delete("/scores/<int:score_id>")
+@auth.admin_required
+def score_delete(score_id: int) -> Response:
+    """Remove one pontuação: a self-report the teacher refused, or a wrong one."""
+    connection = get_db()
+    _score_or_404(connection, score_id)
+    connection.execute("DELETE FROM scores WHERE id = ?", (score_id,))
     connection.commit()
     return Response(status=204)

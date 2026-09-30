@@ -30,6 +30,20 @@ const FROGGER: Game = {
 	],
 };
 
+/** The one game of our own: no console, so no console badge either. */
+const PONG: Game = {
+	id: "pong",
+	title: "Pong",
+	type: "builtin",
+	system: null,
+	year: 1972,
+	maker: "Atari",
+	about: "Rebata a bola com a sua raquete.",
+	controls: [{ keys: ["↑", "↓"], action: "mover a raquete" }],
+};
+
+const EMPTY_BOARD = { record: null, top: [], myPending: [] };
+
 function jsonResponse(status: number, body: unknown): Response {
 	return new Response(JSON.stringify(body), {
 		status,
@@ -59,6 +73,9 @@ describe("the /jogo screen", () => {
 	function serve(view: GamesView): void {
 		fetchMock.mockImplementation((path: string) => {
 			if (path === "/api/games") return jsonResponse(200, view);
+			if (String(path).endsWith("/scoreboard")) {
+				return jsonResponse(200, EMPTY_BOARD);
+			}
 			const one = /^\/api\/games\/(.+)$/.exec(path);
 			if (one) {
 				const found = view.games.find((game) => game.id === one[1]);
@@ -70,9 +87,14 @@ describe("the /jogo screen", () => {
 		});
 	}
 
+	/** renderGames is the screen as the application mounts it. */
+	function renderGames() {
+		return render(<Games student={null} onStudentChanged={() => undefined} />);
+	}
+
 	it("lists the visible games, with the console and the year", async () => {
-		serve({ mode: "free", games: [ENDURO, FROGGER] });
-		render(<Games />);
+		serve({ mode: "free", games: [ENDURO, FROGGER, PONG] });
+		renderGames();
 
 		expect(await screen.findByText("Enduro")).toBeTruthy();
 		expect(screen.getByText("Frogger")).toBeTruthy();
@@ -80,13 +102,16 @@ describe("the /jogo screen", () => {
 		expect(screen.getByText("Atari 2600")).toBeTruthy();
 		expect(screen.getByText("Fliperama")).toBeTruthy();
 		expect(screen.getByText("1983")).toBeTruthy();
+		// A game of our own has no console to name, so the badge says which it is.
+		expect(screen.getByText("Pong")).toBeTruthy();
+		expect(screen.getByText("Jogo da sala")).toBeTruthy();
 		// A grid, not a game: nothing is embedded until one is chosen.
 		expect(document.querySelector("iframe")).toBeNull();
 	});
 
 	it("opens the active game's page in single mode", async () => {
 		serve({ mode: "single", games: [ENDURO] });
-		render(<Games />);
+		renderGames();
 
 		expect(await screen.findByRole("heading", { name: "Enduro" })).toBeTruthy();
 		expect(screen.getByText("Sobre o jogo")).toBeTruthy();
@@ -104,7 +129,7 @@ describe("the /jogo screen", () => {
 
 	it("says so, kindly, when no game is visible at all", async () => {
 		serve({ mode: "single", games: [] });
-		render(<Games />);
+		renderGames();
 
 		expect(await screen.findByText(/Nenhum jogo liberado agora/)).toBeTruthy();
 		expect(document.querySelector("iframe")).toBeNull();
@@ -112,7 +137,7 @@ describe("the /jogo screen", () => {
 
 	it("revalidates when the kid comes back, and falls back to the empty state", async () => {
 		serve({ mode: "single", games: [ENDURO] });
-		render(<Games />);
+		renderGames();
 		expect(await screen.findByRole("heading", { name: "Enduro" })).toBeTruthy();
 
 		// The teacher turned the class's game off while the kid was in another
@@ -128,7 +153,7 @@ describe("the /jogo screen", () => {
 
 	it("leaves the running game alone when the answer did not change", async () => {
 		serve({ mode: "single", games: [ENDURO] });
-		render(<Games />);
+		renderGames();
 		expect(await screen.findByRole("heading", { name: "Enduro" })).toBeTruthy();
 		const frame = document.querySelector("iframe");
 

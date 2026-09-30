@@ -29,7 +29,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { getAdminGames, putGamesMode } from "@/lib/api";
-import { SYSTEM_LABELS } from "@/lib/games";
+import { systemLabel } from "@/lib/games";
 import type { AdminGame, AdminGames } from "@/lib/types";
 import { useAction } from "@/lib/useAction";
 import { useAsync } from "@/lib/useAsync";
@@ -260,7 +260,7 @@ export function GamesAdmin() {
 														{game.id}
 													</span>
 												</TableCell>
-												<TableCell>{SYSTEM_LABELS[game.system]}</TableCell>
+												<TableCell>{systemLabel(game.system)}</TableCell>
 												<TableCell className="text-muted-foreground">
 													{game.year}
 												</TableCell>
