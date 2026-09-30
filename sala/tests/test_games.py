@@ -10,16 +10,17 @@ import pytest
 
 from app import games
 
+# The tracked catalogue, oldest first (games of the same year in file order).
 CATALOGUE_IDS = [
     "pong",
-    "enduro",
     "space-invaders",
-    "river-raid",
-    "pitfall",
     "frogger",
     "galaga",
-    "ms-pac-man",
     "donkey-kong",
+    "river-raid",
+    "pitfall",
+    "ms-pac-man",
+    "enduro",
     "super-mario-bros",
     "super-mario-world",
     "sonic",
@@ -52,6 +53,17 @@ def load(tmp_path: Path, entries: list) -> tuple[games.Jogo, ...]:
 
 
 # --- the tracked file ------------------------------------------------------
+
+
+def test_the_catalogue_comes_back_oldest_first_with_ties_in_file_order(tmp_path):
+    entries = [
+        {**BASE, "id": "c", "year": 1990},
+        {**BASE, "id": "a", "year": 1981},
+        {**BASE, "id": "b", "year": 1975},
+        {**BASE, "id": "d", "year": 1981},
+    ]
+
+    assert [jogo.id for jogo in load(tmp_path, entries)] == ["b", "a", "d", "c"]
 
 
 def test_the_tracked_catalogue_has_the_games_of_the_course():
@@ -183,9 +195,9 @@ def test_the_tracked_games_that_score_by_themselves_read_the_right_bytes():
 
 
 def test_the_games_without_a_score_block_are_the_ones_we_cannot_read():
-    with_score = [jogo.id for jogo in games.catalogue() if jogo.score is not None]
+    with_score = {jogo.id for jogo in games.catalogue() if jogo.score is not None}
 
-    assert with_score == [
+    assert with_score == {
         "enduro",
         "space-invaders",
         "river-raid",
@@ -194,7 +206,7 @@ def test_the_games_without_a_score_block_are_the_ones_we_cannot_read():
         "galaga",
         "ms-pac-man",
         "donkey-kong",
-    ]
+    }
 
 
 # --- validation ------------------------------------------------------------

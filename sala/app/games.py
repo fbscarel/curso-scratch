@@ -207,7 +207,11 @@ def catalogue() -> tuple[Jogo, ...]:
 
 
 def load_catalogue(path: Path) -> tuple[Jogo, ...]:
-    """Read and validate a catalogue file; raise CatalogueError on a bad entry."""
+    """Read and validate a catalogue file; raise CatalogueError on a bad entry.
+
+    The games come back oldest first (a stable sort, so games of the same year
+    keep the file's order): every list the kids and the teacher see follows it.
+    """
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as error:
@@ -229,7 +233,7 @@ def load_catalogue(path: Path) -> tuple[Jogo, ...]:
             raise CatalogueError(f"{where}: o id '{jogo.id}' já apareceu antes.")
         seen.add(jogo.id)
         jogos.append(jogo)
-    return tuple(jogos)
+    return tuple(sorted(jogos, key=lambda jogo: jogo.year))
 
 
 def by_id(game_id: str | None) -> Jogo | None:
