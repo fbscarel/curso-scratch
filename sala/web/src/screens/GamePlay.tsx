@@ -99,6 +99,16 @@ type Save =
 	| { state: "failed"; message: string };
 
 /**
+ * A finished round: the pontuação it scored and where filing it got to.
+ *
+ * `round` is which round it is. A write is slow enough to outlive the round
+ * that started it -- the kid has started another one by the time the answer
+ * arrives -- so the answer has to name the card it belongs to: it lands on that
+ * round's card and never on a newer round's.
+ */
+type Result = { round: number; score: number; save: Save };
+
+/**
  * One score sample from the emulator page: whether a match is running, and the
  * points it read (null when that sample could not be read).
  */
@@ -153,9 +163,10 @@ export function GamePlay({
 	const [failure, setFailure] = useState<Error | null>(null);
 	// What the finished game scored and where filing it got to, and the counter
 	// that asks the placar to read the server again once it is on the board.
-	const [result, setResult] = useState<{ score: number; save: Save } | null>(
-		null,
-	);
+	const [result, setResult] = useState<Result | null>(null);
+	// The round the last result belonged to. A write is filed under the round
+	// that started it, so a late answer can only touch that round's card.
+	const roundRef = useRef(0);
 	const [placarKey, setPlacarKey] = useState(0);
 	// The live score of a match in progress: `inGame` is the page's latest
 	// sample flag, and `liveScore` is the last score it could read. The refs are
@@ -257,20 +268,29 @@ export function GamePlay({
 	 * typed it, so there is nothing for the teacher to confirm and the server
 	 * puts it straight on the placar. The answer says whether that happened
 	 * rather than this screen assuming it from the method it sent.
+	 *
+	 * `round` is the round the pontuação belongs to, and every answer lands on
+	 * that round's card alone: by the time a slow write is answered the kid may
+	 * be in another round, whose card says something else and is not this
+	 * answer's to overwrite.
 	 */
-	async function file(score: number): Promise<void> {
-		setResult((prev) => (prev ? { ...prev, save: { state: "saving" } } : prev));
+	async function file(score: number, round: number): Promise<void> {
+		setResult((prev) =>
+			prev && prev.round === round
+				? { ...prev, save: { state: "saving" } }
+				: prev,
+		);
 		try {
 			const created = await postScore({ gameId: id, score, method: "auto" });
 			setResult((prev) =>
-				prev
+				prev && prev.round === round
 					? { ...prev, save: { state: "saved", approved: created.approved } }
 					: prev,
 			);
 			setPlacarKey((n) => n + 1);
 		} catch (error: unknown) {
 			setResult((prev) =>
-				prev
+				prev && prev.round === round
 					? { ...prev, save: { state: "failed", message: messageOf(error) } }
 					: prev,
 			);
@@ -288,11 +308,14 @@ export function GamePlay({
 	 */
 	function onGameOver(score: number): void {
 		celebrate();
+		roundRef.current += 1;
+		const round = roundRef.current;
 		setResult({
+			round,
 			score,
 			save: student ? { state: "saving" } : { state: "waiting" },
 		});
-		if (student) void file(score);
+		if (student) void file(score, round);
 	}
 
 	/**
@@ -301,13 +324,18 @@ export function GamePlay({
 	 * The card is about a game that is OVER, and the one that just began has no
 	 * pontuação yet: the previous number left on the screen while the kid plays
 	 * reads as this game's. The exception is a pontuação that still has
-	 * something waiting on it -- one looking for a name, or one that failed to
-	 * be filed -- because clearing that card would take away the only place that
-	 * number exists.
+	 * something waiting on it -- one looking for a name, one whose write is
+	 * still in flight, or one that failed to be filed -- because clearing that
+	 * card would take away the only place that number exists. A write still in
+	 * flight is the one that has to stay the most: its answer is coming either
+	 * way, and a refusal has nowhere else to leave the retry.
 	 */
 	function onGameStart(): void {
 		setResult((prev) =>
-			prev && (prev.save.state === "waiting" || prev.save.state === "failed")
+			prev &&
+			(prev.save.state === "waiting" ||
+				prev.save.state === "saving" ||
+				prev.save.state === "failed")
 				? prev
 				: null,
 		);
@@ -374,10 +402,11 @@ export function GamePlay({
 	 */
 	async function pick(chosen: Student): Promise<void> {
 		const score = result?.score;
+		const round = result?.round;
 		await action.run(async () => {
 			await putIdentity(chosen.id);
 			onStudentChanged();
-			if (score !== undefined) await file(score);
+			if (score !== undefined && round !== undefined) await file(score, round);
 		});
 	}
 
@@ -514,7 +543,7 @@ export function GamePlay({
 							picking={action.busy}
 							pickError={action.error}
 							onPick={(chosen) => void pick(chosen)}
-							onRetry={() => void file(result.score)}
+							onRetry={() => void file(result.score, result.round)}
 						/>
 					)}
 				</div>

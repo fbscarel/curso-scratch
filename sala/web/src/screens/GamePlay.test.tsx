@@ -810,4 +810,96 @@ describe("a game of our own", () => {
 		expect(screen.getByText("7 pontos")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
 	});
+
+	it("keeps a pontuação whose write is still in flight when a new round starts", async () => {
+		// The write outlives the round: the kid starts another one before the
+		// answer arrives, and the card has to stay -- a refusal landing after it
+		// was cleared would take the number and its retry away with it.
+		const answers: Array<(response: Response) => void> = [];
+		fetchMock.mockImplementation((path: string, init?: RequestInit) => {
+			if (String(path).endsWith("/scoreboard")) {
+				return jsonResponse(200, EMPTY_BOARD);
+			}
+			if (path === "/api/games/pong") return jsonResponse(200, PONG);
+			if (path === "/api/scores" && init?.method === "POST") {
+				posted.push(JSON.parse(String(init.body)));
+				return new Promise<Response>((resolve) => answers.push(resolve));
+			}
+			return jsonResponse(404, { error: `pedido inesperado: ${path}` });
+		});
+		render(
+			<GamePlay id="pong" student={ANA} onStudentChanged={() => undefined} />,
+		);
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "fim de jogo de mentira" }),
+		);
+		expect(await screen.findByText("Salvando a sua pontuação…")).toBeTruthy();
+
+		fireEvent.click(screen.getByRole("button", { name: "jogar de novo" }));
+		expect(screen.getByText("7 pontos")).toBeTruthy();
+		expect(screen.getByText("Salvando a sua pontuação…")).toBeTruthy();
+
+		await act(async () => {
+			answers[0]?.(
+				jsonResponse(422, {
+					error: "Este jogo não manda a pontuação sozinho.",
+				}),
+			);
+		});
+
+		expect(
+			await screen.findByText("Este jogo não manda a pontuação sozinho."),
+		).toBeTruthy();
+		expect(screen.getByText("7 pontos")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+	});
+
+	it("never lets a late answer to one round land on the next round's card", async () => {
+		const answers: Array<(response: Response) => void> = [];
+		fetchMock.mockImplementation((path: string, init?: RequestInit) => {
+			if (String(path).endsWith("/scoreboard")) {
+				return jsonResponse(200, EMPTY_BOARD);
+			}
+			if (path === "/api/games/pong") return jsonResponse(200, PONG);
+			if (path === "/api/scores" && init?.method === "POST") {
+				posted.push(JSON.parse(String(init.body)));
+				return new Promise<Response>((resolve) => answers.push(resolve));
+			}
+			return jsonResponse(404, { error: `pedido inesperado: ${path}` });
+		});
+		render(
+			<GamePlay id="pong" student={ANA} onStudentChanged={() => undefined} />,
+		);
+
+		// Round one ends and its write is still in flight.
+		fireEvent.click(
+			await screen.findByRole("button", { name: "fim de jogo de mentira" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "jogar de novo" }));
+		// Round two ends too, with a card and a write of its own.
+		fireEvent.click(
+			screen.getByRole("button", { name: "fim de jogo de um ponto" }),
+		);
+		await waitFor(() => expect(answers).toHaveLength(2));
+		expect(screen.getByText("1 ponto")).toBeTruthy();
+
+		// Round one's write is finally answered: its card is gone, and the one
+		// on the screen is round two's, which this answer is not about.
+		await act(async () => {
+			answers[0]?.(jsonResponse(201, { id: 1, score: 7, approved: true }));
+		});
+		expect(screen.getByText("1 ponto")).toBeTruthy();
+		expect(screen.getByText("Salvando a sua pontuação…")).toBeTruthy();
+		expect(screen.queryByText("Sua pontuação já está no placar!")).toBeNull();
+
+		// Round two's own answer is the one that lands on it.
+		await act(async () => {
+			answers[1]?.(jsonResponse(201, { id: 2, score: 1, approved: true }));
+		});
+		expect(
+			await screen.findByText("Sua pontuação já está no placar!"),
+		).toBeTruthy();
+		expect(screen.getByText("1 ponto")).toBeTruthy();
+	});
 });

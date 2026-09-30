@@ -319,6 +319,42 @@ def test_names_the_teachers_machine_folds_together_get_their_own_folder(
     assert contents == [bytes([index]) for index in range(len(names))]
 
 
+def test_two_entregas_of_one_name_across_a_rename_keep_their_own_entry(
+    app, admin_client, admin_api, add_student, add_lesson, as_student, upload_file, db, tmp_path
+):
+    # The folder an entrega lands in is named after the aluno, so the same file
+    # handed in before and after a rename goes to two folders -- with the same
+    # name and the same minute in both. The zip cannot have two entries by that
+    # name: extraction would keep only the last one.
+    add_lesson(1, "2026-09-01")
+    ana = add_student("Ana Teste")
+    client = app.test_client()
+    token = as_student(client, ana)
+    assert upload_file(client, token, "jogo.sb3", b"antes do nome novo").status_code == 201
+    db.execute("UPDATE students SET name = ? WHERE id = ?", ("Ana Silva", ana))
+    db.commit()
+    assert upload_file(client, token, "jogo.sb3", b"depois do nome novo").status_code == 201
+
+    response = admin_client.get(f"{admin_api}/uploads/lesson/1.zip")
+
+    with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
+        entries = archive.namelist()
+        contents = sorted(archive.read(entry) for entry in entries)
+    assert len(entries) == 2
+    assert len(set(entries)) == 2
+    assert {entry.split("/", 1)[0] for entry in entries} == {"Ana Silva"}
+    assert contents == [b"antes do nome novo", b"depois do nome novo"]
+
+    extracted = tmp_path / "extraido"
+    with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
+        archive.extractall(extracted)
+    files = [path for path in extracted.rglob("*") if path.is_file()]
+    assert sorted(path.read_bytes() for path in files) == [
+        b"antes do nome novo",
+        b"depois do nome novo",
+    ]
+
+
 def test_moving_through_a_symlinked_aula_moves_nothing_and_changes_nothing(
     app, admin_client, admin_api, csrf_of, db, data_dir, entregas, tmp_path
 ):

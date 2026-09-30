@@ -96,7 +96,10 @@ def check_csrf() -> None:
     given = request.headers.get(CSRF_HEADER, "")
     if not expected or not given:
         raise ApiError(400, MISSING_CSRF_MESSAGE, CSRF_ERROR_CODE)
-    if not hmac.compare_digest(str(expected), given):
+    # As bytes: `hmac.compare_digest` refuses a str that is not ASCII (it raises
+    # TypeError), and a header is whatever the client sent -- a token with an
+    # accent in it is a wrong token, which is a 400, not a 500.
+    if not hmac.compare_digest(str(expected).encode("utf-8"), given.encode("utf-8")):
         raise ApiError(400, WRONG_CSRF_MESSAGE, CSRF_ERROR_CODE)
 
 

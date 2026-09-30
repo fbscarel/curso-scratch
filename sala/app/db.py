@@ -7,6 +7,7 @@ have been applied, so starting twice is a no-op.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
 
 from flask import Flask, current_app, g
@@ -86,13 +87,47 @@ def user_version(connection: sqlite3.Connection) -> int:
 
 
 def migrate(connection: sqlite3.Connection) -> int:
-    """Apply the pending migrations; returns how many are applied in total."""
+    """Apply the pending migrations; returns how many are applied in total.
+
+    Each migration and the `PRAGMA user_version` that records it are committed
+    together, so a start that is interrupted halfway through one leaves the
+    database exactly as the previous start did. `executescript` cannot do that:
+    it commits whatever is pending before it runs, and each statement inside it
+    lands on its own, which is a `CREATE TABLE` that survives a failure before
+    the version bump and then fails every later start on the table already
+    existing. The statements are therefore split and executed one by one, inside
+    a transaction this function opens itself.
+    """
     applied = user_version(connection)
     for number, script in enumerate(MIGRATIONS[applied:], start=applied + 1):
-        connection.executescript(script)
-        connection.execute(f"PRAGMA user_version = {number}")
-    connection.commit()
+        _apply_migration(connection, number, script)
     return len(MIGRATIONS)
+
+
+def _apply_migration(connection: sqlite3.Connection, number: int, script: str) -> None:
+    """Run one migration and record it, or put the database back as it was."""
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        for statement in _statements(script):
+            connection.execute(statement)
+        connection.execute(f"PRAGMA user_version = {number}")
+    except BaseException:
+        connection.rollback()
+        raise
+    connection.commit()
+
+
+def _statements(script: str) -> Iterator[str]:
+    """The statements of a migration script, in order, without the empty ones.
+
+    Split on `;`, which is where one of these DDL statements always ends. A
+    migration that ever needs a semicolon INSIDE a statement (a trigger body,
+    say) cannot be written as one entry of `MIGRATIONS`: it has to be split by
+    hand there, or the pieces would arrive at `execute` cut in half.
+    """
+    for statement in script.split(";"):
+        if statement.strip():
+            yield statement
 
 
 def get_db() -> sqlite3.Connection:

@@ -23,6 +23,13 @@ def _columns(connection: sqlite3.Connection, table: str) -> dict[str, sqlite3.Ro
     return {row["name"]: row for row in connection.execute(f"PRAGMA table_info({table})")}
 
 
+def _table_names(connection: sqlite3.Connection) -> set[str]:
+    return {
+        row["name"]
+        for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
+
+
 def test_connect_turns_on_wal_and_foreign_keys(config):
     config.data_dir.mkdir(parents=True, exist_ok=True)
     connection = connect(config.db_path)
@@ -108,6 +115,37 @@ def test_migrate_twice_on_the_same_connection_keeps_the_data(db):
     db.commit()
     assert migrate(db) == len(MIGRATIONS)
     assert db.execute("SELECT COUNT(*) FROM lessons").fetchone()[0] == 1
+
+
+def test_a_migration_that_fails_halfway_changes_nothing(tmp_path, monkeypatch):
+    """A migration and its `PRAGMA user_version` are one transaction.
+
+    A `CREATE TABLE` that outlived a failure before the version bump would make
+    every later start fail on the table already existing -- the schema and the
+    count have to move together or not at all.
+    """
+    connection = connect(tmp_path / "sala.db")
+    try:
+        assert migrate(connection) == len(MIGRATIONS)
+
+        # A migration whose second statement cannot run: neither the table the
+        # first one created nor the version bump may survive it.
+        broken = "CREATE TABLE turmas (id INTEGER); CREATE TABLE turmas (id INTEGER);"
+        monkeypatch.setattr("app.db.MIGRATIONS", MIGRATIONS + (broken,))
+        with pytest.raises(sqlite3.OperationalError):
+            migrate(connection)
+
+        assert user_version(connection) == len(MIGRATIONS)
+        assert "turmas" not in _table_names(connection)
+
+        # With the migration corrected, the next start applies it cleanly:
+        # nothing the failed attempt wrote is in the way.
+        monkeypatch.setattr("app.db.MIGRATIONS", MIGRATIONS + ("CREATE TABLE turmas (id INTEGER);",))
+        assert migrate(connection) == len(MIGRATIONS) + 1
+        assert user_version(connection) == len(MIGRATIONS) + 1
+        assert "turmas" in _table_names(connection)
+    finally:
+        connection.close()
 
 
 def test_student_names_are_unique_ignoring_case(db, add_student):

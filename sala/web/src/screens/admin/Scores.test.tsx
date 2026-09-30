@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CSRF_HEADER, forgetCsrf, rememberCsrf } from "@/lib/api";
@@ -217,5 +223,78 @@ describe("the admin Placar screen", () => {
 		await waitFor(() =>
 			expect(queried.some((path) => path.includes("game=enduro"))).toBe(true),
 		);
+	});
+
+	it("keeps every aula when the teacher picks it", async () => {
+		// Radix scrolls the chosen option into view, which jsdom has no
+		// implementation of.
+		Element.prototype.scrollIntoView = vi.fn();
+		render(<Scores currentNumber={4} />);
+		await screen.findByText("Bruno Teste");
+		// It opens on the aula the lab is in.
+		await waitFor(() =>
+			expect(queried.some((path) => path.includes("lesson=4"))).toBe(true),
+		);
+
+		fireEvent.click(screen.getByLabelText("Filtrar por aula"));
+		fireEvent.click(
+			await screen.findByRole("option", { name: "Todas as aulas" }),
+		);
+
+		// Every aula is a choice, not "nothing picked yet": the screen must not
+		// put the current aula back, and the request carries no lesson at all.
+		const settled = queried.length;
+		await act(async () => {
+			await Promise.resolve();
+		});
+		expect(queried.length).toBe(settled);
+		expect(queried.at(-1)).not.toContain("lesson=");
+		const filter = screen.getByLabelText("Filtrar por aula");
+		expect(filter.textContent).toContain("Todas as aulas");
+		expect(filter.textContent).not.toContain("Aula 4");
+	});
+
+	it("shows a hand-in that arrives while the queue is open", async () => {
+		pending = [];
+		vi.useFakeTimers();
+		try {
+			render(<Scores currentNumber={4} />);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(0);
+			});
+			expect(
+				screen.getByText("Nenhuma pontuação esperando confirmação."),
+			).toBeTruthy();
+
+			// A kid hands a pontuação in; nothing on this screen knows it yet.
+			pending = [PENDING];
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(15_000);
+			});
+
+			expect(screen.getByText("Ana Teste")).toBeTruthy();
+			// One tick, one read: a queue that asked again on every render would
+			// be a request a second from the teacher's tab.
+			expect(
+				queried.filter((path) => path.includes("status=pending")).length,
+			).toBe(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("reads the queue again when the teacher comes back to the tab", async () => {
+		pending = [];
+		render(<Scores currentNumber={4} />);
+		expect(
+			await screen.findByText("Nenhuma pontuação esperando confirmação."),
+		).toBeTruthy();
+
+		pending = [PENDING];
+		await act(async () => {
+			window.dispatchEvent(new Event("focus"));
+		});
+
+		expect(await screen.findByText("Ana Teste")).toBeTruthy();
 	});
 });

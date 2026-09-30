@@ -363,6 +363,37 @@ def _unique_segment(base: str, student_id: int, taken: set[str]) -> str:
     return segment
 
 
+def _fold_arcname(arcname: str) -> str:
+    """How the extracting machine sees an entry, for telling two entries apart.
+
+    The same folding `safe_zip_segment` does to a folder, applied to the whole
+    entry: macOS normalizes to NFD and Windows drops a trailing dot or space,
+    so `Jogo.sb3` and `Jogo.SB3` -- or `jogo` and `jogo.` -- are one name there.
+    """
+    return unicodedata.normalize("NFC", arcname).rstrip(". ").casefold()
+
+
+def _unique_arcname(segment: str, filename: str, taken: set[str]) -> str:
+    """`<segment>/<filename>`, told apart from the entries already in the archive.
+
+    A file's name says when it was handed in and what it was called, and neither
+    changes when the aluno's name does -- so the same file uploaded before and
+    after a rename comes out with the same name in two folders. The zip cannot
+    have two entries by that name: the extraction would keep only the last one.
+    The second entry gets ` (2)` before its extension instead, by the rule
+    `_place` applies on disk and on the folded name, so what collides on the
+    teacher's machine is what gets told apart here.
+    """
+    stem, extension = os.path.splitext(filename)
+    number = 1
+    candidate = f"{segment}/{filename}"
+    while _fold_arcname(candidate) in taken:
+        number += 1
+        candidate = f"{segment}/{stem} ({number}){extension}"
+    taken.add(_fold_arcname(candidate))
+    return candidate
+
+
 def _zip_segments(rows: Iterable[sqlite3.Row]) -> dict[int, str]:
     """The zip folder of each aluno: its name, told apart when two names clash.
 
@@ -388,7 +419,9 @@ def build_lesson_zip(connection: sqlite3.Connection, data_dir: Path, number: int
     Scratch projects is not something to hold twice. A row whose file is gone is
     skipped instead of failing the whole download. The aluno's segment is
     sanitized: the teacher extracts this zip on their own machine, and a name
-    like `..` or `Ana/Bruno` must not steer that extraction.
+    like `..` or `Ana/Bruno` must not steer that extraction. No two entries
+    share a name either -- a file uploaded twice, before and after the aluno's
+    name changed, would otherwise be one entry that overwrites the other.
     """
     rows = connection.execute(
         "SELECT u.*, s.name AS student_name FROM uploads u"
@@ -398,6 +431,7 @@ def build_lesson_zip(connection: sqlite3.Connection, data_dir: Path, number: int
         (number,),
     ).fetchall()
     segments = _zip_segments(rows)
+    taken: set[str] = set()
     handle_fd, temp_name = tempfile.mkstemp(dir=data_dir, prefix=ZIP_PREFIX, suffix=".zip")
     os.close(handle_fd)
     temp = Path(temp_name)
@@ -407,7 +441,8 @@ def build_lesson_zip(connection: sqlite3.Connection, data_dir: Path, number: int
                 path = data_dir / row["stored_path"]
                 if not path.is_file():
                     continue
-                archive.write(path, arcname=f"{segments[row['student_id']]}/{path.name}")
+                arcname = _unique_arcname(segments[row["student_id"]], path.name, taken)
+                archive.write(path, arcname=arcname)
     except BaseException:
         temp.unlink(missing_ok=True)
         raise

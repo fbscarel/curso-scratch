@@ -126,6 +126,20 @@ def test_every_non_get_route_needs_the_csrf_token(app, client, csrf_of):
     assert checked == EXPECTED_NON_GET
 
 
+def test_a_non_ascii_csrf_token_is_refused_like_any_other_wrong_one(client, csrf_of):
+    # A header is whatever the client sent, and a token with an accent in it is
+    # a wrong token: it has to be the 400 the SPA knows how to answer (read the
+    # session again), not an exception out of the comparison.
+    csrf_of(client, "/api/session")
+
+    response = client.put(
+        "/api/identity", json={"studentId": 1}, headers={CSRF_HEADER: "tokén"}
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["code"] == CSRF_ERROR_CODE
+
+
 def test_every_response_refuses_to_be_sniffed(
     app, client, add_student, add_lesson, as_student, upload_file
 ):

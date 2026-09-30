@@ -1,5 +1,5 @@
 import { Check, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageTitle } from "@/components/AdminShell";
 import { Empty, ErrorNotice, NameAvatar } from "@/components/Bits";
@@ -56,6 +56,17 @@ const ALL_LESSONS = "all";
 const ALL_GAMES = "all";
 
 /**
+ * How often the moderation queue asks the server again, in milliseconds.
+ *
+ * The queue fills while the teacher is looking at the screen -- a kid hands in
+ * a pontuação in the room next door -- and nothing here would notice: this is
+ * the one list the teacher does not change themselves. The kid's placar uses
+ * the same pace for the same reason, and a slower one would leave a hand-in
+ * invisible for long enough that the teacher gives up on the screen.
+ */
+const REFRESH_MS = 15_000;
+
+/**
  * Scores is the teacher's placar screen, and it has two jobs.
  *
  * The first is the pile of pontuações a kid typed in themselves: nothing a kid
@@ -74,7 +85,12 @@ export function Scores({ currentNumber }: { currentNumber: number | null }) {
 	);
 	const games = useAsync((signal) => getAdminGames(signal), "admin-games");
 	const action = useAction();
-	const [lesson, setLesson] = useState<number | null>(null);
+	// `undefined` is "the screen has not picked yet": the list opens on the aula
+	// the lab is in, the same way the entregas do. `null` is the teacher having
+	// picked every aula, which is a choice like any other -- so the effect below
+	// must leave it alone instead of reading it as "no choice yet" and putting
+	// the current aula back.
+	const [lesson, setLesson] = useState<number | null | undefined>(undefined);
 	const [game, setGame] = useState<string | null>(null);
 	const [rejecting, setRejecting] = useState<AdminScore | null>(null);
 	const [removing, setRemoving] = useState<AdminScore | null>(null);
@@ -82,7 +98,9 @@ export function Scores({ currentNumber }: { currentNumber: number | null }) {
 	// The list opens on the aula the lab is in -- the one the kids are scoring in
 	// -- the same way the entregas do.
 	useEffect(() => {
-		if (lesson !== null || !lessons.data || lessons.data.length === 0) return;
+		if (lesson !== undefined || !lessons.data || lessons.data.length === 0) {
+			return;
+		}
 		const registered =
 			currentNumber !== null &&
 			lessons.data.some((item) => item.number === currentNumber);
@@ -100,19 +118,39 @@ export function Scores({ currentNumber }: { currentNumber: number | null }) {
 			listAdminScores(
 				{
 					status: "approved",
-					...(lesson !== null ? { lesson } : {}),
+					...(lesson !== undefined && lesson !== null ? { lesson } : {}),
 					...(game !== null ? { game } : {}),
 				},
 				signal,
 			),
-		`approved-${lesson ?? "-"}-${game ?? "-"}`,
+		`approved-${lesson === undefined ? "?" : (lesson ?? "all")}-${game ?? "-"}`,
 	);
 
 	/** reload reads both lists again: an answer here changes what the other shows. */
-	function reload(): void {
+	const reload = useCallback((): void => {
 		pending.reload();
 		approved.reload();
-	}
+	}, [pending.reload, approved.reload]);
+
+	// The queue fills on its own -- a kid hands a pontuação in while the teacher
+	// has the screen open -- so it is read again on a timer and whenever the
+	// teacher comes back to the tab, the same way the kid's placar is. The
+	// effect is installed once: `reload` is stable, so a tick is one request
+	// rather than a loop, and unmounting clears the timer.
+	useEffect(() => {
+		const timer = setInterval(() => reload(), REFRESH_MS);
+		const look = () => reload();
+		const onVisibility = () => {
+			if (document.visibilityState === "visible") look();
+		};
+		window.addEventListener("focus", look);
+		document.addEventListener("visibilitychange", onVisibility);
+		return () => {
+			clearInterval(timer);
+			window.removeEventListener("focus", look);
+			document.removeEventListener("visibilitychange", onVisibility);
+		};
+	}, [reload]);
 
 	async function approve(score: AdminScore): Promise<void> {
 		await action.run(async () => {
@@ -256,7 +294,11 @@ export function Scores({ currentNumber }: { currentNumber: number | null }) {
 					<div className="space-y-2">
 						<Label htmlFor="placar-aula">Aula</Label>
 						<Select
-							value={lesson === null ? ALL_LESSONS : String(lesson)}
+							value={
+								lesson === undefined || lesson === null
+									? ALL_LESSONS
+									: String(lesson)
+							}
 							onValueChange={(next) =>
 								setLesson(next === ALL_LESSONS ? null : Number(next))
 							}
