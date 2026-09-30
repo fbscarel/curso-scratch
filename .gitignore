@@ -21,7 +21,7 @@ __pycache__/
 .DS_Store
 
 # Local-only, never published (internal notes, references, web-filter configuration)
-/HANDOFF.md
+/HANDOFF*.md
 /.omp/
 /docs/
 /referencias/
