@@ -5,6 +5,7 @@
   "modules-left": [
     "custom/scratch",
     "custom/firefox",
+    "custom/entregar",
     "wlr/taskbar"
   ],
   "modules-right": [
@@ -20,6 +21,11 @@
   "custom/firefox": {
     "format": "  Navegador",
     "on-click": "firefox",
+    "tooltip": false
+  },
+  "custom/entregar": {
+    "format": "  Entregar trabalho",
+    "on-click": "entregar-trabalho",
     "tooltip": false
   },
   "wlr/taskbar": {

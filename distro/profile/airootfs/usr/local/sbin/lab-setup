@@ -27,4 +27,16 @@ if [ -d /etc/NetworkManager/system-connections ]; then
     find /etc/NetworkManager/system-connections -type f -exec chmod 600 {} +
 fi
 
-systemctl enable NetworkManager.service systemd-timesyncd.service
+# mDNS: the desktop app and the browser bookmark use http://sala.local:8000.
+# mdns_minimal sits right after mymachines, so only .local names go to avahi and
+# everything else falls through to the rest of the chain.
+nsswitch=/etc/nsswitch.conf
+if ! grep -q '^hosts: mymachines mdns_minimal \[NOTFOUND=return\]' "$nsswitch"; then
+    sed -i 's/^hosts: mymachines /hosts: mymachines mdns_minimal [NOTFOUND=return] /' "$nsswitch"
+    if ! grep -q '^hosts: mymachines mdns_minimal \[NOTFOUND=return\]' "$nsswitch"; then
+        echo "lab-setup: linha 'hosts: mymachines' não encontrada em $nsswitch; o mDNS (sala.local) não foi habilitado." >&2
+        exit 1
+    fi
+fi
+
+systemctl enable NetworkManager.service systemd-timesyncd.service avahi-daemon.service

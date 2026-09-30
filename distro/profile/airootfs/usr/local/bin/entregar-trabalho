@@ -1,0 +1,698 @@
+#!/usr/bin/env python3
+"""Hand in a Scratch project to the classroom server.
+
+The window lists the .sb3 projects saved in the kid's home directory, the class
+names (read from the server) and a button that hands the chosen file in. The
+server is the classroom one -- `http://sala.local:8000` by default; when it does
+not answer, the window asks for the address the teacher wrote on the board.
+
+Only the window needs GTK: finding the projects, normalizing the address and
+talking to the API are importable without `gi`, which is what the tests use.
+"""
+
+from __future__ import annotations
+
+import datetime
+import filecmp
+import http.cookiejar
+import json
+import os
+import sys
+import threading
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+from pathlib import Path
+
+# Where the image keeps the untouched copies of the class projects: a file with
+# the same name and the same bytes is a copy nobody worked on, so it is not
+# something the kid may hand in.
+SKEL_AULAS = Path("/etc/skel/Aulas")
+
+ADDRESS_FILE = "endereco"
+NAME_FILE = "nome"
+
+DEFAULT_URL = "http://sala.local:8000"
+DEFAULT_PORT = 8000
+# The server has to answer fast or the kid is told to type the address; a file
+# on its way to the teacher's laptop may take much longer.
+PROBE_TIMEOUT = 2.0
+UPLOAD_TIMEOUT = 120.0
+
+# Mirrors the server's own limit (sala/app/uploads.py): the window says so
+# before reading a huge file into memory and shipping it over the LAN.
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+
+MAX_DEPTH = 4
+ALLOWED_EXTENSIONS = (".sb3", ".sprite3", ".png", ".jpg", ".jpeg", ".wav", ".mp3")
+
+CSRF_HEADER = "X-CSRF-Token"
+CSRF_CODE = "csrf"
+
+NO_SERVER_MESSAGE = "Não achei o servidor da sala. Confira o endereço no quadro."
+STRANGE_MESSAGE = "O servidor respondeu algo estranho. Chame o professor."
+BAD_ADDRESS_MESSAGE = "Esse endereço não parece certo. Confira no quadro."
+TOO_LARGE_MESSAGE = "O arquivo é grande demais (máximo 20 MB)."
+
+
+class Falha(Exception):
+    """A refusal with a message for the kid, plus the server's code and status."""
+
+    def __init__(self, message: str, *, code: str | None = None, status: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.status = status
+
+
+def config_dir() -> Path:
+    """`~/.config/entregar-trabalho`: what the app remembers between openings."""
+    return Path.home() / ".config" / "entregar-trabalho"
+
+
+def read_saved(name: str) -> str:
+    try:
+        return (config_dir() / name).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def save_value(name: str, value: str) -> None:
+    """Remember the address or the picked name for the next time the app opens."""
+    directory = config_dir()
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / name).write_text(value + "\n", encoding="utf-8")
+    except OSError:
+        pass  # a home that cannot be written still hands the file in
+
+
+# --- the kid's projects ----------------------------------------------------
+
+
+def unmodified_copy(path: Path, skel: Path = SKEL_AULAS) -> bool:
+    """True for a copy of a class project that nobody has changed yet."""
+    original = skel / path.name
+    return original.is_file() and filecmp.cmp(original, path, shallow=False)
+
+
+def projetos(home: Path | None = None, skel: Path | None = None) -> list[Path]:
+    """The kid's `.sb3` files under the home directory, newest first.
+
+    Untouched copies of the class projects are left out, hidden folders are
+    skipped and the walk goes no deeper than `MAX_DEPTH`.
+    """
+    home = Path.home() if home is None else home
+    skel = SKEL_AULAS if skel is None else skel
+    found = []
+    for root, folders, files in os.walk(home):
+        depth = len(Path(root).relative_to(home).parts)
+        folders[:] = [] if depth >= MAX_DEPTH else [name for name in folders if not name.startswith(".")]
+        for name in files:
+            path = Path(root) / name
+            if name.lower().endswith(".sb3") and path.is_file() and not unmodified_copy(path, skel):
+                found.append(path)
+    # A file may be gone by now (the kid moved or deleted it while the walk ran):
+    # drop it instead of letting the sort raise FileNotFoundError.
+    found = [path for path in found if path.is_file()]
+    return sorted(found, key=lambda path: path.stat().st_mtime, reverse=True)
+
+
+def when_text(moment: datetime.datetime, now: datetime.datetime) -> str:
+    """`há N minutos` (pt-BR) for the saved-at line of a project."""
+    seconds = max(0, int((now - moment).total_seconds()))
+    if seconds < 60:
+        return "agora mesmo"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"há {minutes} minuto" + ("s" if minutes > 1 else "")
+    hours = minutes // 60
+    if hours < 24:
+        return f"há {hours} hora" + ("s" if hours > 1 else "")
+    days = hours // 24
+    return f"há {days} dia" + ("s" if days > 1 else "")
+
+
+# --- the address on the board ----------------------------------------------
+
+
+def normalize_address(text: str, *, port: int = DEFAULT_PORT) -> str:
+    """`http://host:port` for what the teacher wrote on the board.
+
+    Accepts `192.168.0.10:8000`, `http://sala.local:8000` or a bare host, and
+    assumes `port` when none was given. Anything else raises ValueError with a
+    message for the kid.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("Escreva o endereço da sala.")
+    if "://" not in raw:
+        raw = f"http://{raw}"
+    try:
+        parts = urllib.parse.urlsplit(raw)
+        given_port = parts.port
+    except ValueError as error:
+        raise ValueError("A porta do endereço não é um número.") from error
+    scheme = parts.scheme.lower()
+    if scheme not in ("http", "https"):
+        raise ValueError("O endereço da sala começa com http://.")
+    if not parts.netloc or any(character.isspace() for character in parts.netloc):
+        raise ValueError(BAD_ADDRESS_MESSAGE)
+    host = parts.hostname or ""
+    if not host:
+        raise ValueError(BAD_ADDRESS_MESSAGE)
+    if ":" in host:  # an IPv6 address needs brackets in a URL
+        host = f"[{host}]"
+    number = port if given_port is None else given_port
+    if not 1 <= number <= 65535:
+        raise ValueError("A porta do endereço precisa estar entre 1 e 65535.")
+    return f"{scheme}://{host}:{number}"
+
+
+# --- the server ------------------------------------------------------------
+
+
+class MultipartBody:
+    """The `POST /api/uploads` body of one file, read from disk as it is sent.
+
+    Only the small head and tail are held in memory: the file itself is read in
+    blocks while the request goes out, so even a big project never lands in RAM.
+    """
+
+    def __init__(self, path: Path, *, field: str = "file", boundary: str | None = None) -> None:
+        self.path = path
+        self.boundary = boundary or uuid.uuid4().hex
+        self.content_type = f"multipart/form-data; boundary={self.boundary}"
+        filename = path.name.replace('"', "_").replace("\r", " ").replace("\n", " ")
+        self._head = (
+            f"--{self.boundary}\r\n"
+            f'Content-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
+            "Content-Type: application/octet-stream\r\n\r\n"
+        ).encode("utf-8")
+        self._tail = f"\r\n--{self.boundary}--\r\n".encode("utf-8")
+        self._size = path.stat().st_size
+        self._parts: tuple[bytes | None, ...] = (self._head, None, self._tail)
+        self._index = 0
+        self._offset = 0
+        self._sent = 0
+        self._stream = None
+
+    def __len__(self) -> int:
+        """The whole body size, so the request can carry a Content-Length."""
+        return len(self._head) + self._size + len(self._tail)
+
+    def rewind(self) -> None:
+        """Start over, so a retried request sends the whole file again."""
+        if self._stream is not None:
+            self._stream.close()
+            self._stream = None
+        self._index, self._offset, self._sent = 0, 0, 0
+
+    def read(self, size: int = -1) -> bytes:
+        """The next `size` bytes of head, file and tail, in that order."""
+        wanted = len(self) - self._sent if size is None or size < 0 else size
+        chunk = bytearray()
+        while wanted > 0 and self._index < len(self._parts):
+            part = self._parts[self._index]
+            if part is None:
+                if self._stream is None:
+                    self._stream = self.path.open("rb")
+                piece = self._stream.read(wanted)
+                if not piece:
+                    self._index += 1
+                    continue
+            else:
+                piece = part[self._offset : self._offset + wanted]
+                if not piece:
+                    self._index += 1
+                    self._offset = 0
+                    continue
+                self._offset += len(piece)
+            chunk += piece
+            wanted -= len(piece)
+            self._sent += len(piece)
+        return bytes(chunk)
+
+
+class Sala:
+    """The conversation with the classroom server: session, name and entrega.
+
+    One cookie jar keeps the session the CSRF token belongs to; a token the
+    server refuses (`code: "csrf"`) is read again and the write retried once.
+    """
+
+    def __init__(self, base_url: str, *, timeout: float = PROBE_TIMEOUT) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self.cookies = http.cookiejar.CookieJar()
+        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookies))
+        self.csrf = ""
+        self.student_id: int | None = None
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        body: bytes | MultipartBody | None = None,
+        headers: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> tuple[int, bytes]:
+        """One request; returns its status and body. A dead server raises Falha."""
+        if isinstance(body, MultipartBody):
+            body.rewind()
+        request = urllib.request.Request(self.base_url + path, data=body, method=method)
+        for key, value in (headers or {}).items():
+            request.add_header(key, value)
+        try:
+            with self.opener.open(request, timeout=timeout or self.timeout) as response:
+                return response.status, response.read()
+        except urllib.error.HTTPError as error:
+            return error.code, error.read()
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            raise Falha(NO_SERVER_MESSAGE) from error
+
+    @staticmethod
+    def _parse(body: bytes, *, tolerant: bool = False):
+        try:
+            return json.loads(body.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError) as error:
+            if tolerant:
+                return None
+            raise Falha(STRANGE_MESSAGE) from error
+
+    def _refusal(self, status: int, body: bytes) -> Falha | None:
+        """The server's answer as a Falha, or None when it was not an error."""
+        if status < 400:
+            return None
+        data = self._parse(body, tolerant=True)
+        message, code = None, None
+        if isinstance(data, dict):
+            message, code = data.get("error"), data.get("code")
+        return Falha(message or f"O servidor recusou o pedido ({status}).", code=code, status=status)
+
+    def _raise(self, status: int, body: bytes) -> None:
+        refusal = self._refusal(status, body)
+        if refusal is not None:
+            raise refusal
+
+    def session(self) -> dict:
+        """`GET /api/session`: the CSRF token and the aula the class is on."""
+        status, body = self._request("GET", "/api/session")
+        self._raise(status, body)
+        data = self._parse(body)
+        if not isinstance(data, dict):
+            raise Falha(STRANGE_MESSAGE)
+        self.csrf = str(data.get("csrf") or "")
+        return data
+
+    def students(self) -> list[dict]:
+        """`GET /api/students`: the names of the class, in the server's order."""
+        status, body = self._request("GET", "/api/students")
+        self._raise(status, body)
+        data = self._parse(body)
+        if not isinstance(data, list):
+            raise Falha(STRANGE_MESSAGE)
+        students = []
+        for item in data:
+            if not isinstance(item, dict) or "id" not in item or "name" not in item:
+                raise Falha(STRANGE_MESSAGE)
+            students.append({"id": item["id"], "name": item["name"]})
+        return students
+
+    def _identity(self) -> None:
+        """`PUT /api/identity` with the token we already hold."""
+        body = json.dumps({"studentId": self.student_id}).encode("utf-8")
+        status, response = self._request(
+            "PUT",
+            "/api/identity",
+            body=body,
+            headers={"Content-Type": "application/json", CSRF_HEADER: self.csrf},
+        )
+        self._raise(status, response)
+
+    def renew_session(self) -> None:
+        """Read the session again (new cookie and token) and re-pick the name."""
+        self.session()
+        if self.student_id is not None:
+            self._identity()
+
+    def _write(
+        self,
+        method: str,
+        path: str,
+        *,
+        body: bytes | MultipartBody,
+        headers: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> bytes:
+        """A write with the session token; a refused token is refreshed once."""
+        for attempt in (1, 2):
+            request_headers = {**(headers or {}), CSRF_HEADER: self.csrf}
+            status, response = self._request(
+                method, path, body=body, headers=request_headers, timeout=timeout
+            )
+            refusal = self._refusal(status, response)
+            if refusal is None:
+                return response
+            if refusal.code == CSRF_CODE and attempt == 1:
+                self.renew_session()
+                continue
+            raise refusal
+        raise AssertionError("unreachable")  # pragma: no cover
+
+    def pick_student(self, student_id: int) -> None:
+        """`PUT /api/identity`: this session hands in work as that name."""
+        self.student_id = student_id
+        self._write(
+            "PUT",
+            "/api/identity",
+            body=json.dumps({"studentId": student_id}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+
+    def upload(self, path: Path) -> dict:
+        """`POST /api/uploads`: hand in one file; returns the server's answer."""
+        if path.stat().st_size > MAX_UPLOAD_BYTES:
+            raise Falha(TOO_LARGE_MESSAGE)
+        body = MultipartBody(path)
+        response = self._write(
+            "POST",
+            "/api/uploads",
+            body=body,
+            headers={"Content-Type": body.content_type, "Content-Length": str(len(body))},
+            timeout=UPLOAD_TIMEOUT,
+        )
+        data = self._parse(response)
+        if not isinstance(data, dict) or "lessonNumber" not in data:
+            raise Falha(STRANGE_MESSAGE)
+        return data
+
+
+# --- the window ------------------------------------------------------------
+
+CSS = (
+    "window { font-size: 14pt; }\n"
+    "label { font-size: 14pt; }\n"
+    "button { font-size: 14pt; padding: 8px 16px; }\n"
+    "entry { font-size: 14pt; }\n"
+    ".big { font-size: 18pt; padding: 10px 20px; }\n"
+)
+
+
+def application(gtk, glib):
+    """Build the GTK application; every widget of it is created here."""
+
+    class Window(gtk.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app, title="Entregar trabalho")
+            self.set_default_size(640, 680)
+            provider = gtk.CssProvider()
+            provider.load_from_data(CSS.encode("utf-8"))
+            gtk.StyleContext.add_provider_for_display(
+                self.get_display(), provider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+
+            self.client: Sala | None = None
+            self.students: list[dict] = []
+            self.projects: list[Path] = []
+            self.extra: Path | None = None
+
+            root = gtk.Box(orientation=gtk.Orientation.VERTICAL, spacing=14)
+            for side in ("top", "bottom", "start", "end"):
+                getattr(root, f"set_margin_{side}")(24)
+            self.set_child(root)
+
+            root.append(self._heading("1. Escolha o projeto"))
+            self.list_box = gtk.ListBox(selection_mode=gtk.SelectionMode.SINGLE)
+            self.list_box.connect("row-selected", lambda *_: self._check())
+            scroll = gtk.ScrolledWindow(vexpand=True, min_content_height=200)
+            scroll.set_child(self.list_box)
+            root.append(scroll)
+
+            self.empty = gtk.Label(wrap=True, xalign=0)
+            self.empty.set_markup(
+                "Nenhum projeto salvo ainda. No Scratch, use <b>Arquivo → Salvar como...</b> "
+                "e depois clique em <b>Procurar de novo</b>."
+            )
+            root.append(self.empty)
+
+            buttons = gtk.Box(spacing=12)
+            other = gtk.Button(label="Outro arquivo…")
+            other.connect("clicked", lambda *_: self._choose_other())
+            again = gtk.Button(label="Procurar de novo")
+            again.connect("clicked", lambda *_: self._load_projects())
+            buttons.append(other)
+            buttons.append(again)
+            root.append(buttons)
+
+            root.append(self._heading("2. Quem é você?"))
+            self.name_dropdown = gtk.DropDown()
+            self.name_dropdown.add_css_class("big")
+            self.name_dropdown.set_sensitive(False)
+            root.append(self.name_dropdown)
+
+            self.address_box = gtk.Box(spacing=12)
+            self.address_entry = gtk.Entry(hexpand=True)
+            self.address_entry.set_placeholder_text("ex.: 192.168.0.10:8000")
+            self.address_entry.connect("activate", lambda *_: self._connect())
+            connect = gtk.Button(label="Conectar")
+            connect.connect("clicked", lambda *_: self._connect())
+            self.address_box.append(gtk.Label(label="Endereço da sala (está no quadro):", xalign=0))
+            self.address_box.append(self.address_entry)
+            self.address_box.append(connect)
+            root.append(self.address_box)
+
+            root.append(self._heading("3. Entregar"))
+            footer = gtk.Box(spacing=12)
+            self.spinner = gtk.Spinner()
+            self.notice = gtk.Label(wrap=True, xalign=0, hexpand=True, selectable=True)
+            self.submit = gtk.Button(label="Entregar")
+            self.submit.add_css_class("suggested-action")
+            self.submit.add_css_class("big")
+            self.submit.connect("clicked", lambda *_: self._submit())
+            footer.append(self.spinner)
+            footer.append(self.notice)
+            footer.append(self.submit)
+            root.append(footer)
+
+            self._load_projects()
+            self.address_entry.set_text(read_saved(ADDRESS_FILE) or DEFAULT_URL)
+            self._connect(remember=False)
+
+        # -- small pieces ---------------------------------------------------
+
+        @staticmethod
+        def _heading(text):
+            label = gtk.Label(xalign=0)
+            label.set_markup(f"<b>{glib.markup_escape_text(text)}</b>")
+            return label
+
+        def _notice(self, text, error=False):
+            colour = "#c01c28" if error else "#26a269"
+            self.notice.set_markup(
+                f"<span foreground='{colour}'>{glib.markup_escape_text(text)}</span>"
+            )
+
+        def _show_address(self, visible):
+            self.address_box.set_visible(visible)
+            if visible:
+                self.address_entry.grab_focus()
+
+        def _task(self, work, done):
+            """Run `work` off the main loop and hand its result (or a Falha) to `done`."""
+            self.spinner.start()
+            self._check()
+
+            def run():
+                try:
+                    result = work()
+                except Falha as failure:
+                    result = failure
+                except Exception as failure:  # noqa: BLE001 - any failure must reach the kid
+                    result = Falha(str(failure))
+                glib.idle_add(self._finished, done, result)
+
+            threading.Thread(target=run, daemon=True).start()
+
+        def _finished(self, done, result):
+            self.spinner.stop()
+            done(result)
+            self._check()
+            return False
+
+        # -- the server -----------------------------------------------------
+
+        def _connect(self, remember=True):
+            """Reach the server at the typed (or remembered) address."""
+            try:
+                address = normalize_address(self.address_entry.get_text())
+            except ValueError as error:
+                self._show_address(True)
+                self._notice(str(error), error=True)
+                return
+
+            def work():
+                client = Sala(address)
+                return client, client.session()
+
+            def done(result):
+                if isinstance(result, Falha):
+                    self._show_address(True)
+                    self._notice(str(result), error=True)
+                    return
+                client, _session = result
+                self.client = client
+                self.address_entry.set_text(address)
+                if remember:
+                    save_value(ADDRESS_FILE, address)
+                self._show_address(False)
+                self._notice("Conectado! Agora escolha o seu nome.")
+                self._load_students()
+
+            self._task(work, done)
+
+        def _load_students(self):
+            client = self.client
+            if client is None:
+                return
+
+            def work():
+                return client.students()
+
+            def done(result):
+                if isinstance(result, Falha):
+                    self._show_address(True)
+                    self._notice(str(result), error=True)
+                    return
+                self.students = result
+                # A GtkDropDown always leaves a row selected once the model is
+                # not empty (set_selected(INVALID_LIST_POSITION) is a no-op in
+                # GTK 4.22), so row 0 is a placeholder and the names start at 1.
+                model = gtk.StringList()
+                model.append("Escolha o seu nome")
+                for student in result:
+                    model.append(student["name"])
+                self.name_dropdown.set_model(model)
+                remembered = read_saved(NAME_FILE)
+                for index, student in enumerate(result):
+                    if student["name"] == remembered:
+                        self.name_dropdown.set_selected(index + 1)
+                        break
+                self.name_dropdown.set_sensitive(bool(result))
+                if not result:
+                    self._notice("Ainda não tem nenhum nome na lista. Chame o professor.", error=True)
+                self._check()
+
+            self._task(work, done)
+
+        # -- the projects ---------------------------------------------------
+
+        def _load_projects(self):
+            self.list_box.remove_all()
+            self.projects = [path for path in projetos() if path.is_file()]
+            if self.extra is not None and self.extra.is_file() and self.extra not in self.projects:
+                self.projects.insert(0, self.extra)
+            now = datetime.datetime.now()
+            for path in self.projects:
+                saved_at = datetime.datetime.fromtimestamp(path.stat().st_mtime)
+                label = gtk.Label(xalign=0, margin_top=8, margin_bottom=8, margin_start=10, margin_end=10)
+                label.set_markup(
+                    f"<b>{glib.markup_escape_text(path.name)}</b>"
+                    f"   <small>{glib.markup_escape_text(when_text(saved_at, now))}</small>"
+                )
+                self.list_box.append(label)
+            self.empty.set_visible(not self.projects)
+            if self.projects:
+                self.list_box.select_row(self.list_box.get_row_at_index(0))
+            self._check()
+
+        def _choose_other(self):
+            # `Gtk.FileDialog` only opens through the desktop portal: with none
+            # running it builds its window and never shows it, leaving the
+            # button dead. The older chooser widget needs no portal.
+            dialog = gtk.FileChooserDialog(title="Escolha o arquivo", modal=True)
+            dialog.add_button("_Cancelar", gtk.ResponseType.CANCEL)
+            dialog.add_button("_Abrir", gtk.ResponseType.ACCEPT)
+            wanted = gtk.FileFilter(name="Arquivos do Scratch")
+            for extension in ALLOWED_EXTENSIONS:
+                wanted.add_pattern(f"*{extension}")
+            dialog.add_filter(wanted)
+            dialog.connect("response", self._other_chosen)
+            dialog.present()
+
+        def _other_chosen(self, dialog, response):
+            chosen = dialog.get_file() if response == gtk.ResponseType.ACCEPT else None
+            dialog.destroy()
+            path = chosen.get_path() if chosen is not None else None
+            if path is None:
+                return  # the kid closed the dialog without picking a file
+            self.extra = Path(path)
+            self._load_projects()
+
+        # -- handing the file in --------------------------------------------
+
+        def _chosen_file(self) -> Path | None:
+            row = self.list_box.get_selected_row()
+            if row is None:
+                return None
+            index = row.get_index()
+            return self.projects[index] if 0 <= index < len(self.projects) else None
+
+        def _picked_student(self) -> dict | None:
+            """The student the kid picked, or None while the placeholder is on."""
+            index = self.name_dropdown.get_selected()
+            if index == gtk.INVALID_LIST_POSITION or not 0 < index <= len(self.students):
+                return None
+            return self.students[index - 1]
+
+        def _ready(self) -> bool:
+            return (
+                self.client is not None
+                and self._chosen_file() is not None
+                and self._picked_student() is not None
+            )
+
+        def _check(self):
+            self.submit.set_sensitive(self._ready() and not self.spinner.get_spinning())
+
+        def _submit(self):
+            path = self._chosen_file()
+            client = self.client
+            student = self._picked_student()
+            if path is None or client is None or student is None:
+                return
+            save_value(NAME_FILE, student["name"])
+
+            def work():
+                client.pick_student(student["id"])
+                return client.upload(path)
+
+            def done(result):
+                if isinstance(result, Falha):
+                    self._notice(str(result), error=True)
+                    return
+                self._notice(f"Guardado na Aula {result['lessonNumber']}!")
+
+            self._task(work, done)
+
+    app = gtk.Application(application_id="org.scratchlab.EntregarTrabalho")
+    app.connect(
+        "activate",
+        lambda application: (application.get_active_window() or Window(application)).present(),
+    )
+    return app
+
+
+def main() -> int:
+    """Open the window. `gi` is imported here so the logic runs without GTK."""
+    import gi
+
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import GLib, Gtk
+
+    return application(Gtk, GLib).run([sys.argv[0]])
+
+
+if __name__ == "__main__":
+    sys.exit(main())

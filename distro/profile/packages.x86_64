@@ -26,6 +26,10 @@ wireless-regdb
 dnsmasq
 network-manager-applet
 
+# mDNS: the lab server answers at http://sala.local:8000
+avahi
+nss-mdns
+
 # Graphics / desktop
 mesa
 labwc
@@ -51,3 +55,7 @@ pavucontrol
 firefox
 firefox-i18n-pt-br
 turbowarp-desktop-lab
+
+# "Entregar trabalho" desktop app (usr/local/bin/entregar-trabalho): Python + GTK 4
+python-gobject
+gtk4

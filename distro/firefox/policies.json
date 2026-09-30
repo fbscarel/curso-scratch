@@ -43,6 +43,11 @@
     "DisplayBookmarksToolbar": "always",
     "Bookmarks": [
       {
+        "Title": "Sala",
+        "URL": "http://sala.local:8000/",
+        "Placement": "toolbar"
+      },
+      {
         "Title": "Scratch",
         "URL": "https://scratch.mit.edu/",
         "Placement": "toolbar"

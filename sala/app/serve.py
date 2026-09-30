@@ -4,6 +4,10 @@ The teacher can also name the game of the day: `just sala jogo=enduro` (or
 `just sala enduro` — the recipe passes whatever was typed through) sets the active
 game for single-game mode, and `just sala jogo=livre` turns free mode on. An
 unknown name stops the server before it starts, listing the ids it knows.
+
+It also announces the board address as `<SALA_NOME>.local` while the server
+runs, so the class can reach it by name; avahi-publish is only a child of this
+process, stopped together with it.
 """
 
 from __future__ import annotations
@@ -11,12 +15,19 @@ from __future__ import annotations
 import fcntl
 import ipaddress
 import os
+import re
+import shutil
+import signal
 import socket
 import struct
+import subprocess
 import sys
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from waitress import serve as waitress_serve
 
@@ -44,6 +55,16 @@ NO_ADDRESS_MESSAGE = (
     "Não achei nenhum endereço da rede local. Veja o IP da máquina com `ip -4 addr`"
     " e escreva no quadro."
 )
+
+# The published name doubles as a hostname, so only lowercase letters, digits
+# and hyphens are accepted.
+MDNS_PROGRAM = "avahi-publish"
+DEFAULT_MDNS_NAME = "sala"
+MDNS_NAME_PATTERN = re.compile(r"[a-z0-9-]+")
+# avahi-publish gives up at once when the daemon is off or the name is taken;
+# one that survives this long is the one the class will actually resolve.
+MDNS_SETTLE_SECONDS = 1.0
+MDNS_STOP_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -113,6 +134,90 @@ def list_interfaces() -> list[Interface]:
     return interfaces
 
 
+def mdns_hint(name: str) -> str:
+    """The pt-BR instructions to make `<name>.local` work."""
+    return (
+        f"Para usar http://{name}.local: sudo pacman -S avahi nss-mdns"
+        " e sudo systemctl enable --now avahi-daemon"
+    )
+
+
+def is_valid_mdns_name(name: str) -> bool:
+    """True when `name` may be published as `<name>.local`."""
+    return MDNS_NAME_PATTERN.fullmatch(name) is not None
+
+
+def board_address(url: str) -> str:
+    """The IPv4 inside one `http://<ip>:<port>` URL from the board."""
+    return urlsplit(url).hostname or ""
+
+
+def mdns_command(name: str, address: str) -> list[str]:
+    """The avahi-publish command announcing `<name>.local` at `address`."""
+    return [MDNS_PROGRAM, "-a", "-R", f"{name}.local", address]
+
+
+def start_mdns(name: str, address: str) -> subprocess.Popen | None:
+    """Start avahi-publish, or None when it is not installed."""
+    if shutil.which(MDNS_PROGRAM) is None:
+        return None
+    return subprocess.Popen(mdns_command(name, address), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def stays_up(process: subprocess.Popen) -> bool:
+    """True when the child is still running after the settle time."""
+    time.sleep(MDNS_SETTLE_SECONDS)
+    return process.poll() is None
+
+
+def stop_mdns(process: subprocess.Popen | None) -> None:
+    """Stop the avahi child, if any, and reap it."""
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=MDNS_STOP_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+def announce_mdns(process: subprocess.Popen | None, name: str, port: int) -> None:
+    """Say where the board is announced, once the settle wait has passed.
+
+    A child that gave up right away (daemon off, name taken) is reaped and the
+    pt-BR hint is printed instead.
+    """
+    if process is not None and stays_up(process):
+        print(f"Também em: http://{name}.local:{port}")
+        return
+    stop_mdns(process)
+    print(mdns_hint(name))
+
+
+def _exit_on_signal(signum: int, frame: object) -> None:
+    raise SystemExit(0)
+
+
+@contextmanager
+def mdns_lifetime(start: Callable[[], subprocess.Popen | None]) -> Iterator[subprocess.Popen | None]:
+    """Run the block with `start()`'s avahi child alive, stopping it on the way out.
+
+    The SIGTERM handler goes up before the child is even started and the process
+    is handed to the block, so Ctrl+C and a plain kill both reach the cleanup —
+    including a signal that lands during the settle wait — and never leave an
+    avahi-publish behind.
+    """
+    previous = signal.signal(signal.SIGTERM, _exit_on_signal)
+    process: subprocess.Popen | None = None
+    try:
+        process = start()
+        yield process
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+        stop_mdns(process)
+
+
 def parse_game_argument(argv: Sequence[str]) -> str | None:
     """The game the teacher named on the command line, or None.
 
@@ -152,6 +257,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Erro: {games.unknown_game_message(choice)}", file=sys.stderr)
         return 1
 
+    name = os.environ.get("SALA_NOME", DEFAULT_MDNS_NAME)
+    if not is_valid_mdns_name(name):
+        print(
+            f"Erro: SALA_NOME={name!r} não serve: use só letras minúsculas, números e hífen (ex.: sala).",
+            file=sys.stderr,
+        )
+        return 1
+
     port = int(os.environ.get("SALA_PORTA", DEFAULT_PORT))
     urls = lan_addresses(list_interfaces(), port)
     if urls:
@@ -167,7 +280,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             games.choose(get_db(), choice)
         print(_choice_message(choice))
 
-    waitress_serve(app, host="0.0.0.0", port=port, threads=THREADS)
+    def start_publisher() -> subprocess.Popen | None:
+        if not urls:
+            return None
+        return start_mdns(name, board_address(urls[0]))
+
+    with mdns_lifetime(start_publisher) as publisher:
+        if urls:
+            announce_mdns(publisher, name, port)
+        waitress_serve(app, host="0.0.0.0", port=port, threads=THREADS)
     return 0
 
 
