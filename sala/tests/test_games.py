@@ -96,27 +96,105 @@ def test_the_catalogue_defaults_to_the_tracked_file():
     assert games.catalogue_path() == Path(games.__file__).resolve().parents[1] / "jogos.yml"
 
 
+def flag(offset: int, *, is_value: int | None = None, not_value: int | None = None) -> games.InGame:
+    """A one-test in-game flag: the shape most entries use."""
+    return games.InGame(
+        tests=(games.InGameTest(offset=offset, is_value=is_value, not_value=not_value),)
+    )
+
+
 def test_the_tracked_enduro_reads_its_odometer():
     # The hex offsets of the file are plain numbers once loaded.
     assert games.by_id("enduro").score == games.ScoreBlock(
-        bcd=(0xA6, 0xA5, 0xA4),
-        multiplier=1,
-        in_game=games.InGame(offset=0x90, is_value=0xFF),
+        bcd=(0xA6, 0xA5, 0xA4), multiplier=1, in_game=flag(0x90, is_value=0xFF)
     )
 
 
 def test_the_tracked_frogger_reads_its_score_and_its_play_flag():
     assert games.by_id("frogger").score == games.ScoreBlock(
-        bcd=(0x453C, 0x453B),
-        multiplier=10,
-        in_game=games.InGame(offset=0x454C, not_value=0x00),
+        bcd=(0x453C, 0x453B), multiplier=10, in_game=flag(0x454C, not_value=0x00)
     )
 
 
-def test_only_enduro_and_frogger_have_a_score_block():
+def test_the_tracked_games_that_score_by_themselves_read_the_right_bytes():
+    # The offsets are savestate offsets: the 2600 games keep their RAM 4 bytes
+    # above the RAM address the ROM uses ($E6 of the RAM is state 0xE2), the
+    # arcade ones are the MAME blob's own layout.
+    payloads = {
+        jogo.id: jogo.score.payload() for jogo in games.catalogue() if jogo.score is not None
+    }
+
+    assert payloads == {
+        "enduro": {
+            "bcd": [0xA6, 0xA5, 0xA4],
+            "multiplier": 1,
+            "inGame": {"offset": 0x90, "is": 0xFF},
+        },
+        "space-invaders": {
+            "bcd": [0xE2, 0xE4],
+            "multiplier": 1,
+            # The attract demo ($AA bit 7 set, exactly 0x80) and the game-over
+            # latch ($E5 bit 7 set, 0x80) both have to be off for a match.
+            "inGame": {
+                "all": [{"offset": 0xA6, "not": 0x80}, {"offset": 0xE1, "not": 0x80}]
+            },
+        },
+        "river-raid": {
+            "digits": [0xC9, 0xCB, 0xCD, 0xCF, 0xD1, 0xD3],
+            "digitShift": 3,
+            "blank": 0x58,
+            "multiplier": 1,
+            # Blank outside a match, zero for the first frames after power-on:
+            # both have to hold.
+            "inGame": {
+                "all": [{"offset": 0xBC, "not": 0x58}, {"offset": 0xBC, "not": 0x00}]
+            },
+        },
+        "pitfall": {
+            "bcd": [0xD1, 0xD2, 0xD3],
+            "multiplier": 1,
+            "inGame": {"any": [{"offset": 0x9A, "is": 0x00}, {"offset": 0xDC, "not": 0x00}]},
+        },
+        "frogger": {
+            "bcd": [0x453C, 0x453B],
+            "multiplier": 10,
+            "inGame": {"offset": 0x454C, "not": 0x00},
+        },
+        "galaga": {
+            "digits": [0x1C2D9, 0x1C2D8, 0x1C2D7, 0x1C2D6, 0x1C2D5, 0x1C2D4],
+            "digitShift": 0,
+            "blank": 0x24,
+            "multiplier": 1,
+            "inGame": {"offset": 0x1CEEE, "is": 0x01},
+        },
+        "ms-pac-man": {
+            "bcd": [0x4F3F, 0x4F3E, 0x4F3D],
+            "multiplier": 1,
+            "inGame": {"offset": 0x4EBD, "is": 0x03},
+        },
+        "donkey-kong": {
+            "bcd": [0x0202, 0x0201, 0x0200],
+            "multiplier": 1,
+            # $6041 (state 0x018F): the game's own mode, not the credit count
+            # at $6001, which is zero for a whole one-credit game.
+            "inGame": {"offset": 0x018F, "is": 0x01},
+        },
+    }
+
+
+def test_the_games_without_a_score_block_are_the_ones_we_cannot_read():
     with_score = [jogo.id for jogo in games.catalogue() if jogo.score is not None]
 
-    assert with_score == ["enduro", "frogger"]
+    assert with_score == [
+        "enduro",
+        "space-invaders",
+        "river-raid",
+        "pitfall",
+        "frogger",
+        "galaga",
+        "ms-pac-man",
+        "donkey-kong",
+    ]
 
 
 # --- validation ------------------------------------------------------------
@@ -306,6 +384,88 @@ def test_a_score_block_is_only_for_an_emulated_game(tmp_path):
         ({"bcd": [1], "multiplier": 1, "in_game": {"offset": 0x90, "is": 256}}, "byte"),
         ({"bcd": [1], "multiplier": 1, "in_game": {"offset": 0x90, "not": -1}}, "byte"),
         ({"bcd": [1], "multiplier": 1, "in_game": {"offset": 0x90, "is": True}}, "byte"),
+        # A score block is packed BCD or one digit per byte, never both and
+        # never neither.
+        (
+            {"bcd": [1], "digits": [1], "multiplier": 1, "in_game": {"offset": 0, "is": 1}},
+            "exatamente um",
+        ),
+        ({"multiplier": 1, "in_game": {"offset": 0, "is": 1}}, "exatamente um"),
+        # The digit list itself: 1 to 7 offsets, whole numbers.
+        ({"digits": []}, "digits"),
+        ({"digits": [1] * 8}, "digits"),
+        ({"digits": [-1]}, "digits"),
+        ({"digits": [1.5]}, "digits"),
+        ({"digits": ["1"]}, "digits"),
+        ({"digits": [True]}, "digits"),
+        # How far the digit sits up in its byte.
+        ({"digits": [1], "multiplier": 1, "digit_shift": 8}, "digit_shift"),
+        ({"digits": [1], "multiplier": 1, "digit_shift": -1}, "digit_shift"),
+        ({"digits": [1], "multiplier": 1, "digit_shift": "3"}, "digit_shift"),
+        ({"digits": [1], "multiplier": 1, "digit_shift": True}, "digit_shift"),
+        # The code of an empty cell.
+        ({"digits": [1], "multiplier": 1, "blank": 256}, "blank"),
+        ({"digits": [1], "multiplier": 1, "blank": -1}, "blank"),
+        ({"digits": [1], "multiplier": 1, "blank": True}, "blank"),
+        # Neither key says anything about packed BCD.
+        ({"bcd": [1], "digit_shift": 3}, "digit_shift"),
+        ({"bcd": [1], "blank": 0x58}, "blank"),
+        # The in-game flag: one test, or two to four where any one (or, with
+        # `all`, every one) is enough.
+        ({"bcd": [1], "multiplier": 1, "in_game": {"any": [{"offset": 0, "is": 1}]}}, "any"),
+        (
+            {"bcd": [1], "multiplier": 1, "in_game": {"any": [{"offset": 0, "is": 1}] * 5}},
+            "any",
+        ),
+        ({"bcd": [1], "multiplier": 1, "in_game": {"all": [{"offset": 0, "is": 1}]}}, "all"),
+        (
+            {"bcd": [1], "multiplier": 1, "in_game": {"all": [{"offset": 0, "is": 1}] * 5}},
+            "all",
+        ),
+        (
+            {
+                "bcd": [1],
+                "multiplier": 1,
+                "in_game": {
+                    "any": [{"offset": 0, "is": 1}, {"offset": 1, "is": 1}],
+                    "all": [{"offset": 0, "is": 1}, {"offset": 1, "is": 1}],
+                },
+            },
+            "não os dois",
+        ),
+        (
+            {
+                "bcd": [1],
+                "multiplier": 1,
+                "in_game": {"offset": 0, "any": [{"offset": 0, "is": 1}, {"offset": 1, "is": 1}]},
+            },
+            "não leva",
+        ),
+        (
+            {
+                "bcd": [1],
+                "multiplier": 1,
+                "in_game": {"not": 0, "all": [{"offset": 0, "is": 1}, {"offset": 1, "is": 1}]},
+            },
+            "não leva",
+        ),
+        (
+            {
+                "bcd": [1],
+                "multiplier": 1,
+                "in_game": {"any": [{"offset": 0, "is": 1}, {"offset": 0}]},
+            },
+            "exatamente um",
+        ),
+        (
+            {
+                "bcd": [1],
+                "multiplier": 1,
+                "in_game": {"all": [{"offset": 0, "is": 1}, {"offset": 0, "is": 2, "not": 3}]},
+            },
+            "exatamente um",
+        ),
+        ({"bcd": [1], "multiplier": 1, "in_game": {"any": ["x", {"offset": 0, "is": 1}]}}, "in_game"),
     ],
 )
 def test_a_bad_score_block_names_the_file_and_the_entry(tmp_path, score, expected):
@@ -325,8 +485,86 @@ def test_a_score_block_of_one_byte_is_enough(tmp_path):
     )[0]
 
     assert jogo.score == games.ScoreBlock(
-        bcd=(0x10,), multiplier=100, in_game=games.InGame(offset=0, not_value=0)
+        bcd=(0x10,), multiplier=100, in_game=flag(0, not_value=0)
     )
+
+
+def test_a_digits_block_loads_with_its_shift_and_blank(tmp_path):
+    jogo = load(
+        tmp_path,
+        [
+            {
+                **BASE,
+                "score": {
+                    "digits": [0xCD, 0xCF],
+                    "digit_shift": 3,
+                    "blank": 0x58,
+                    "multiplier": 1,
+                    "in_game": {"offset": 0, "not": 0x58},
+                },
+            }
+        ],
+    )[0]
+
+    assert jogo.score == games.ScoreBlock(
+        digits=(0xCD, 0xCF), digit_shift=3, blank=0x58, multiplier=1, in_game=flag(0, not_value=0x58)
+    )
+
+
+def test_an_any_in_game_flag_keeps_every_test(tmp_path):
+    jogo = load(
+        tmp_path,
+        [
+            {
+                **BASE,
+                "score": {
+                    "bcd": [0xD1, 0xD2, 0xD3],
+                    "multiplier": 1,
+                    "in_game": {
+                        "any": [{"offset": 0x9A, "is": 0x00}, {"offset": 0xDC, "not": 0x00}]
+                    },
+                },
+            }
+        ],
+    )[0]
+
+    assert jogo.score is not None
+    assert jogo.score.in_game == games.InGame(
+        tests=(
+            games.InGameTest(offset=0x9A, is_value=0x00),
+            games.InGameTest(offset=0xDC, not_value=0x00),
+        )
+    )
+
+
+def test_an_all_in_game_flag_keeps_its_mode(tmp_path):
+    jogo = load(
+        tmp_path,
+        [
+            {
+                **BASE,
+                "score": {
+                    "digits": [0xC9],
+                    "multiplier": 1,
+                    "in_game": {
+                        "all": [{"offset": 0xBC, "not": 0x58}, {"offset": 0xBC, "not": 0x00}]
+                    },
+                },
+            }
+        ],
+    )[0]
+
+    assert jogo.score is not None
+    assert jogo.score.in_game == games.InGame(
+        tests=(
+            games.InGameTest(offset=0xBC, not_value=0x58),
+            games.InGameTest(offset=0xBC, not_value=0x00),
+        ),
+        mode=games.IN_GAME_ALL,
+    )
+    assert jogo.score.in_game.payload() == {
+        "all": [{"offset": 0xBC, "not": 0x58}, {"offset": 0xBC, "not": 0x00}]
+    }
 
 
 def test_a_game_without_a_score_block_has_none(tmp_path):
@@ -355,6 +593,33 @@ def test_a_score_block_that_could_beat_the_server_cap_is_refused(tmp_path, bcd, 
     assert "entrada 1" in message
 
 
+@pytest.mark.parametrize(
+    "digits, multiplier",
+    [
+        ([1] * 7, 10),
+        ([1] * 6, 100),
+    ],
+)
+def test_a_digits_block_that_could_beat_the_server_cap_is_refused(tmp_path, digits, multiplier):
+    # One digit per byte holds a shorter number than packed BCD, but seven
+    # digits times ten is already past the placar's limit.
+    score = {"digits": digits, "multiplier": multiplier, "in_game": {"offset": 0, "not": 0}}
+
+    with pytest.raises(games.CatalogueError) as error:
+        load(tmp_path, [{**BASE, "score": score}])
+
+    assert "acima do limite" in str(error.value)
+
+
+def test_a_digits_block_that_reads_up_to_the_server_cap_is_accepted(tmp_path):
+    # Seven digits are 9.999.999: exactly the cap, and as far as a block may go.
+    score = {"digits": [1] * 7, "multiplier": 1, "in_game": {"offset": 0, "not": 0}}
+
+    jogo = load(tmp_path, [{**BASE, "score": score}])[0]
+
+    assert jogo.score is not None and len(jogo.score.digits or ()) == 7
+
+
 def test_a_score_block_that_reads_up_to_the_server_cap_is_accepted(tmp_path):
     # Three bytes are six digits, so even the multiplier of 10 reads at most
     # 9.999.990 -- inside the limit, and that is as far as a block may go.
@@ -363,20 +628,21 @@ def test_a_score_block_that_reads_up_to_the_server_cap_is_accepted(tmp_path):
     jogo = load(tmp_path, [{**BASE, "score": score}])[0]
 
     assert jogo.score == games.ScoreBlock(
-        bcd=(1, 2, 3), multiplier=10, in_game=games.InGame(offset=0, not_value=0)
+        bcd=(1, 2, 3), multiplier=10, in_game=flag(0, not_value=0)
     )
 
 
-def test_the_score_block_payload_uses_the_catalogue_keys():
-    assert games.by_id("enduro").score.payload() == {
-        "bcd": [0xA6, 0xA5, 0xA4],
+def test_the_digit_score_block_payload_uses_the_page_keys():
+    # The page reads `digitShift` and `blank`, not the catalogue's snake_case.
+    assert games.by_id("river-raid").score.payload() == {
+        "digits": [0xC9, 0xCB, 0xCD, 0xCF, 0xD1, 0xD3],
+        "digitShift": 3,
+        "blank": 0x58,
         "multiplier": 1,
-        "inGame": {"offset": 0x90, "is": 0xFF},
+        "inGame": {"all": [{"offset": 0xBC, "not": 0x58}, {"offset": 0xBC, "not": 0x00}]},
     }
-    assert games.by_id("frogger").score.payload() == {
-        "bcd": [0x453C, 0x453B],
-        "multiplier": 10,
-        "inGame": {"offset": 0x454C, "not": 0x00},
+    assert games.by_id("pitfall").score.payload()["inGame"] == {
+        "any": [{"offset": 0x9A, "is": 0x00}, {"offset": 0xDC, "not": 0x00}]
     }
 
 
@@ -483,10 +749,13 @@ def test_only_the_games_that_can_report_their_score_do_it_themselves():
     # Our own page counts the points; an emulated game can only do the same
     # when the catalogue says where its score lives in the savestate.
     assert games.allows_auto_score(games.by_id("pong")) is True
-    assert games.allows_auto_score(games.by_id("enduro")) is True
-    assert games.allows_auto_score(games.by_id("frogger")) is True
-    assert games.allows_auto_score(games.by_id("space-invaders")) is False
-    assert games.allows_auto_score(games.by_id("sonic")) is False
+    for game_id in ("enduro", "space-invaders", "river-raid", "pitfall", "frogger",
+                    "galaga", "ms-pac-man", "donkey-kong"):
+        assert games.allows_auto_score(games.by_id(game_id)) is True
+    # The three games whose score we could not find a stable byte for: only the
+    # form the kid fills in.
+    for game_id in ("super-mario-bros", "super-mario-world", "sonic"):
+        assert games.allows_auto_score(games.by_id(game_id)) is False
 
 
 # --- playability and visibility --------------------------------------------
@@ -639,7 +908,8 @@ def test_the_public_payload_says_when_a_game_scores_by_itself():
     assert games.game_payload(games.by_id("pong"), cover=False)["autoScore"] is True
     assert games.game_payload(games.by_id("enduro"), cover=False)["autoScore"] is True
     assert games.game_payload(games.by_id("frogger"), cover=False)["autoScore"] is True
-    assert games.game_payload(games.by_id("space-invaders"), cover=False)["autoScore"] is False
+    assert games.game_payload(games.by_id("galaga"), cover=False)["autoScore"] is True
+    assert games.game_payload(games.by_id("super-mario-bros"), cover=False)["autoScore"] is False
 
 
 def test_the_admin_payload_says_what_is_missing(install_games):

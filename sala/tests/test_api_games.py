@@ -132,9 +132,13 @@ def test_the_payload_says_which_emulated_games_score_by_themselves(client, insta
 
     games_by_id = {game["id"]: game for game in client.get(API).get_json()["games"]}
 
-    assert games_by_id["enduro"]["autoScore"] is True
-    assert games_by_id["frogger"]["autoScore"] is True
-    assert games_by_id["space-invaders"]["autoScore"] is False
+    # The eight emulated games whose score the catalogue can read, and the three
+    # it cannot: those keep only the form the kid fills in.
+    for game_id in ("enduro", "space-invaders", "river-raid", "pitfall", "frogger",
+                    "galaga", "ms-pac-man", "donkey-kong"):
+        assert games_by_id[game_id]["autoScore"] is True, game_id
+    for game_id in ("super-mario-bros", "super-mario-world", "sonic"):
+        assert games_by_id[game_id]["autoScore"] is False, game_id
     assert client.get(f"{API}/enduro").get_json()["autoScore"] is True
 
 

@@ -53,6 +53,10 @@
   // No core cache in IndexedDB: every visit reads the files `just
   // sala-emulador` checked, and not an old copy of them.
   window.EJS_disableDatabases = true;
+  // No settings kept in the browser either: EmulatorJS hands the core the
+  // options below when it loads it (that is what tells MAME to skip its
+  // copyright warning), instead of a remembered copy of an older page's.
+  window.EJS_disableLocalStorage = true;
   window.EJS_defaultOptions = config.defaultOptions;
   window.EJS_Buttons = config.buttons;
   if (config.controlScheme) {

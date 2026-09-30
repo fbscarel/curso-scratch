@@ -75,6 +75,16 @@ EJS_BUTTONS = {
     "restart": False,
 }
 
+# mame2003_plus shows an English "Copyright Warning" -- and, for some sets, a
+# game warning -- before every arcade game. The core has one option for each,
+# `disabled|enabled` (the default is `disabled`); both are turned on so the kid
+# opens straight into the game's own screen instead of a wall of English text.
+MAME_CORE = "mame2003_plus"
+MAME_SKIP_OPTIONS = {
+    "mame2003-plus_skip_disclaimer": "enabled",
+    "mame2003-plus_skip_warnings": "enabled",
+}
+
 # The template's placeholders (see `app/emulator/play.html`).
 CONFIG_MARKER = "__SALA_GAME_CONFIG__"
 AVISO_MARKER = "__SALA_AVISO__"
@@ -86,13 +96,16 @@ DATA_MAX_AGE = 60 * 60 * 24 * 365
 
 def play_config(jogo: games.Jogo, *, error: str | None = None) -> dict:
     """The JSON block of the play page: what `play.js` hands to EmulatorJS."""
+    options = {"webgl2Enabled": "enabled"}
+    if jogo.core == MAME_CORE:
+        options.update(MAME_SKIP_OPTIONS)
     config: dict = {
         "core": jogo.core,
         "gameUrl": games.rom_url(jogo),
         "controlScheme": games.control_scheme(jogo.core),
         "language": "pt-BR",
         "pathtodata": DATA_URL,
-        "defaultOptions": {"webgl2Enabled": "enabled"},
+        "defaultOptions": options,
         "buttons": EJS_BUTTONS,
         # Where the game keeps its score in the savestate, or null for a game
         # that has no way of reporting one: `play.js` only follows the first.

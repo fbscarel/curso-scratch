@@ -102,7 +102,8 @@ ids que ele conhece e o `livre`.
 O que a turma encontra na página: a aula de hoje, o jogo do dia, as folhas (a ficha e os desafios
 das aulas que já começaram), "Quem sou eu?" para escolher o nome, "Entregar trabalho" e "Meus
 arquivos". O jogo abre dentro da própria página, num emulador que roda no navegador do aluno e
-carrega a ROM pelo servidor da sala.
+carrega a ROM pelo servidor da sala. Nos fliperamas, a página já desliga o aviso de copyright em
+inglês que o emulador mostraria antes do jogo: a turma cai direto na tela do jogo.
 
 ## O painel do professor
 
@@ -188,6 +189,9 @@ teclas fazem naquele jogo.
 Com um bloco `score`, a página do jogo sabe ler a pontuação dentro do emulador e manda ela sozinha
 para o placar, sem passar pela sua confirmação. Sem ele, o jogo é jogado do mesmo jeito, mas a
 pontuação que o aluno anotar é que chega ao placar — e essa espera a sua confirmação no painel.
+Nove jogos se pontuam sozinhos: **Pong** (a nossa página) e, no emulador, **Enduro**, **Space
+Invaders**, **River Raid**, **Pitfall!**, **Frogger**, **Galaga**, **Ms. Pac-Man** e **Donkey
+Kong**. Super Mario Bros., Super Mario World e Sonic ficam com o formulário.
 
 ```yaml
 # Enduro: o odômetro de 6 dígitos fica little endian no estado do emulador
@@ -210,12 +214,52 @@ score:
   in_game: {offset: 0x454C, not: 0x00}
 ```
 
-- `bcd`: de 1 a 4 posições no estado do emulador, em BCD empacotado, da mais significativa para a
-  menos (não são endereços da RAM do console).
+```yaml
+# River Raid: uma casa decimal por byte, da mais significativa para a menos,
+# com o dígito três bits acima no byte e 0x58 no lugar da casa vazia. A partida
+# está rodando quando a casa das vidas (RAM $C0) não está vazia nem zerada: nos
+# primeiros quadros depois de ligar ela ainda é 0x00 e a memória já guarda a
+# pontuação da demonstração.
+score:
+  digits: [0xC9, 0xCB, 0xCD, 0xCF, 0xD1, 0xD3]
+  digit_shift: 3
+  blank: 0x58
+  multiplier: 1
+  in_game:
+    all:
+      - {offset: 0xBC, not: 0x58}
+      - {offset: 0xBC, not: 0x00}
+```
+
+```yaml
+# Pitfall!: a partida está rodando quando qualquer um dos dois testes é
+# verdade — o quadro do jogador (0x9A) ou a música de morte (0xDC).
+score:
+  bcd: [0xD1, 0xD2, 0xD3]
+  multiplier: 1
+  in_game:
+    any:
+      - {offset: 0x9A, is: 0x00}
+      - {offset: 0xDC, not: 0x00}
+```
+
+- `bcd` **ou** `digits` (exatamente um dos dois): como os bytes da pontuação se leem. `bcd` é BCD
+  empacotado, dois dígitos por byte (1 a 4 posições); `digits` é um dígito decimal por byte (1 a 7
+  posições). Nos dois casos a lista vai da posição mais significativa para a menos, e são posições
+  no **estado do emulador**, não endereços da RAM do console (no Atari 2600 o estado fica 4 bytes
+  abaixo do endereço da RAM: a RAM `$E6` é o estado `$E2`).
+- `digit_shift` (opcional, só com `digits`): quantos bits o dígito está deslocado dentro do byte
+  (`0` a `7`; o padrão é `0`). A River Raid guarda `dígito << 3`.
+- `blank` (opcional, só com `digits`): o código da casa vazia — a que o jogo deixa em branco no
+  lugar dos zeros à esquerda — e que conta como zero.
 - `multiplier`: `1`, `10` ou `100` — os dígitos que o jogo não guarda.
-- `in_game`: o `offset` do byte que diz que a partida está rodando e o valor que significa isso —
-  `is` (quando o byte é igual) ou `not` (quando é diferente). É o que separa a tela de demonstração
-  da partida de verdade.
+- `in_game`: o que separa a tela de demonstração da partida de verdade. Um teste é o `offset` de um
+  byte e o valor que significa "em jogo" — `is` (quando o byte é igual) ou `not` (quando é
+  diferente). Em vez disso, `any` pode listar de 2 a 4 testes e a partida está rodando quando
+  **qualquer um** deles é verdade (o Pitfall! precisa disso: na morte o quadro congela e a música
+  toca ao mesmo tempo); `all` lista de 2 a 4 testes e exige **todos** (a River Raid precisa: fora
+  da partida a casa das vidas fica 0x58, e nos primeiros quadros depois de ligar ela ainda é
+  0x00).
 
 O servidor também recusa um bloco cuja leitura pudesse passar do limite do placar (9.999.999
 pontos): um save assim nunca poderia ser confirmado.

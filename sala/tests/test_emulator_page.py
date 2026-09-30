@@ -195,13 +195,71 @@ def test_the_config_carries_the_score_block_of_the_game(client, install_games, s
     }
 
 
-def test_the_config_of_a_game_without_a_score_block_says_null(client, install_games, set_game_mode):
-    install_games("space-invaders")
-    set_game_mode(active="space-invaders")
+def test_the_config_carries_a_digit_score_block_with_its_shift_and_blank(
+    client, install_games, set_game_mode
+):
+    install_games("river-raid")
+    set_game_mode(active="river-raid")
 
-    config = config_of(play(client, "space-invaders").get_data(as_text=True))
+    config = config_of(play(client, "river-raid").get_data(as_text=True))
+
+    assert config["score"] == {
+        "digits": [0xC9, 0xCB, 0xCD, 0xCF, 0xD1, 0xD3],
+        "digitShift": 3,
+        "blank": 0x58,
+        "multiplier": 1,
+        "inGame": {"all": [{"offset": 0xBC, "not": 0x58}, {"offset": 0xBC, "not": 0x00}]},
+    }
+
+
+def test_the_config_carries_a_two_test_in_game_flag(client, install_games, set_game_mode):
+    install_games("pitfall")
+    set_game_mode(active="pitfall")
+
+    config = config_of(play(client, "pitfall").get_data(as_text=True))
+
+    assert config["score"]["inGame"] == {
+        "any": [{"offset": 0x9A, "is": 0x00}, {"offset": 0xDC, "not": 0x00}]
+    }
+
+
+def test_the_config_of_a_game_without_a_score_block_says_null(client, install_games, set_game_mode):
+    install_games("super-mario-bros")
+    set_game_mode(active="super-mario-bros")
+
+    config = config_of(play(client, "super-mario-bros").get_data(as_text=True))
 
     assert config["score"] is None
+
+
+# --- the MAME disclaimer ---------------------------------------------------
+
+
+def test_the_arcade_config_skips_the_disclaimer_and_the_warnings(
+    client, install_games, set_game_mode
+):
+    # mame2003_plus shows an English copyright warning before every arcade game;
+    # the core's own options turn it (and the game warnings) off.
+    install_games("frogger")
+    set_game_mode(active="frogger")
+
+    config = config_of(play(client, "frogger").get_data(as_text=True))
+
+    assert config["defaultOptions"] == {
+        "webgl2Enabled": "enabled",
+        "mame2003-plus_skip_disclaimer": "enabled",
+        "mame2003-plus_skip_warnings": "enabled",
+    }
+
+
+def test_the_other_cores_keep_their_own_options(client, install_games, set_game_mode):
+    # The two options are mame2003_plus's; another core would not know them.
+    install_games("super-mario-bros")
+    set_game_mode(active="super-mario-bros")
+
+    config = config_of(play(client, "super-mario-bros").get_data(as_text=True))
+
+    assert config["defaultOptions"] == {"webgl2Enabled": "enabled"}
 
 
 # --- the 404s --------------------------------------------------------------

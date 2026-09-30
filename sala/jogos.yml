@@ -10,9 +10,10 @@
 # and its `controls` are the keys that page listens to.
 #
 # `score` tells the game page where to read the score inside the emulator's
-# savestate: the packed-BCD bytes, most significant first, a multiplier for
-# the digits the game does not store, and the byte that says the match has
-# started. Only emulated games can have one.
+# savestate: the score bytes, most significant first (packed BCD in `bcd`, one
+# digit per byte in `digits`), a multiplier for the digits the game does not
+# store, and the byte (or bytes) that say the match has started. Only emulated
+# games can have one.
 #
 # `capa` is the name of the game's cover at libretro-thumbnails, for the games
 # whose ROM file name is not what is written on the box -- the arcade sets, whose
@@ -61,6 +62,20 @@
   system: atari2600
   core: stella2014
   rom: "atari2600/Space Invaders (USA).zip"
+  # Dois pares BCD na RAM: $E6 (dezena de milhar e milhar) e $E8 (centena e
+  # dezena), ou seja, o estado $E2 e $E4, do mais significativo para o menos.
+  # Dois bytes separam a demonstração da partida: $AA (estado $A6) é 0x80 na
+  # demonstração e 0x00/0x01/0x04 com a partida rodando, e $E5 (estado $E1) é o
+  # latch de fim de jogo — 0x00 enquanto a partida roda, mortes incluídas, e
+  # 0x80 quando as vidas acabam. Na demonstração os bytes da pontuação são
+  # 0xAA/0xA1, que não são BCD.
+  score:
+    bcd: [0xE2, 0xE4]
+    multiplier: 1
+    in_game:
+      all:
+        - {offset: 0xA6, not: 0x80}
+        - {offset: 0xE1, not: 0x80}
   year: 1980
   maker: Atari
   about: "Defenda a Terra: derrube a fileira de alienígenas antes que ela desça."
@@ -76,6 +91,24 @@
   system: atari2600
   core: stella2014
   rom: "atari2600/River Raid (USA).zip"
+  # Uma casa decimal por byte, da mais significativa para a menos, na RAM
+  # $CD..$D7 (estado $C9..$D3): o byte é o dígito três bits acima (código =
+  # dígito << 3) e 0x58 é a casa vazia (zero à esquerda).
+  #
+  # A partida está rodando quando a casa das vidas (RAM $C0, estado $BC) não
+  # está vazia — 0x58 na demonstração e depois da última vida — nem zerada:
+  # nos primeiros quadros depois de ligar a casa ainda é 0x00, e a memória já
+  # guarda a pontuação `_____1` da demonstração, o que bastaria para o site
+  # anotar 1 ponto sozinho.
+  score:
+    digits: [0xC9, 0xCB, 0xCD, 0xCF, 0xD1, 0xD3]
+    digit_shift: 3
+    blank: 0x58
+    multiplier: 1
+    in_game:
+      all:
+        - {offset: 0xBC, not: 0x58}
+        - {offset: 0xBC, not: 0x00}
   year: 1982
   maker: Activision
   about: "Voe pelo rio, destrua os inimigos e não deixe o combustível acabar."
@@ -93,6 +126,18 @@
   system: atari2600
   core: stella2014
   rom: "atari2600/Pitfall! - Pitfall Harry's Jungle Adventure (USA).zip"
+  # Três pares BCD, do mais significativo para o menos, na RAM $D5..$D7
+  # (estado $D1..$D3). $9E (estado $9A) é 0x00 enquanto o jogo roda o quadro do
+  # jogador, mas corre sozinho durante a morte; a marcha fúnebre ($E0, estado
+  # $DC) é o que diz que a morte está em andamento — por isso a condição aceita
+  # qualquer um dos dois.
+  score:
+    bcd: [0xD1, 0xD2, 0xD3]
+    multiplier: 1
+    in_game:
+      any:
+        - {offset: 0x9A, is: 0x00}
+        - {offset: 0xDC, not: 0x00}
   year: 1982
   maker: Activision
   about: "Aventura na selva: corra, pule nos troncos e junte os tesouros."
@@ -134,6 +179,16 @@
   core: mame2003_plus
   rom: "arcade/galaga.zip"
   capa: "Galaga (Namco rev. B)"
+  # Uma casa decimal por byte (código de caractere do Namco, 0x00..0x09), da
+  # mais significativa para a menos; 0x24 é a casa vazia. A pontuação fica na
+  # memória do tilemap e sobrevive ao fim de jogo (as telas de GAME OVER ainda
+  # mostram a última pontuação), então o flag é o que separa a partida da
+  # demonstração: $1CEEE é 0x01 só com a ficha em jogo.
+  score:
+    digits: [0x1C2D9, 0x1C2D8, 0x1C2D7, 0x1C2D6, 0x1C2D5, 0x1C2D4]
+    blank: 0x24
+    multiplier: 1
+    in_game: {offset: 0x1CEEE, is: 0x01}
   year: 1981
   maker: Namco
   about: "Nave espacial: derrube as naves inimigas e resgate a sua nave capturada."
@@ -150,6 +205,14 @@
   core: mame2003_plus
   rom: "arcade/mspacman.zip"
   capa: "Ms. Pac-Man"
+  # Três pares BCD, do mais significativo para o menos (na RAM do Z80 eles
+  # ficam na ordem inversa: $4E82, $4E81, $4E80). $4EBD é o modo de jogo: 1 na
+  # demonstração, 2 com a ficha posta ou no fim de jogo, 3 na partida — ele
+  # continua 3 durante uma morte.
+  score:
+    bcd: [0x4F3F, 0x4F3E, 0x4F3D]
+    multiplier: 1
+    in_game: {offset: 0x4EBD, is: 0x03}
   year: 1982
   maker: Midway
   about: "Coma todas as pastilhas do labirinto fugindo dos fantasmas."
@@ -165,6 +228,16 @@
   core: mame2003_plus
   rom: "arcade/dkong.zip"
   capa: "Donkey Kong (US set 1)"
+  # Três pares BCD, do mais significativo para o menos. $6041 é o modo de jogo:
+  # 0x01 com a partida do jogador rodando (e na tela de GAME OVER dela), 0x00 na
+  # demonstração e na tela de PUSH START — onde a pontuação que a demonstração
+  # deixou no mostrador (3700) ainda está na memória. $6001, que fica ao lado do
+  # mostrador de fichas, é o número de fichas e não o modo: com uma ficha só ele
+  # é 0x00 a partida inteira.
+  score:
+    bcd: [0x0202, 0x0201, 0x0200]
+    multiplier: 1
+    in_game: {offset: 0x018F, is: 0x01}
   year: 1981
   maker: Nintendo
   about: "Suba as escadas, desvie dos barris e salve a moça do Kong."

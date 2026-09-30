@@ -66,10 +66,21 @@ CORE_CONTROL_SCHEMES = {"genesis_plus_gx": "segaMD"}
 
 ID_PATTERN = re.compile(r"[a-z0-9-]+")
 
-# The `score` block: how many packed-BCD bytes a score may be read from, and the
-# only multipliers a game may need (the digits it never stores).
+# The `score` block: how many bytes a score may be read from (four packed-BCD
+# bytes are eight digits; one digit per byte, seven digits is the most that fits
+# the placar), how far a digit may be shifted into its byte, and the only
+# multipliers a game may need (the digits it never stores).
 SCORE_MAX_BYTES = 4
+SCORE_MAX_DIGITS = 7
+SCORE_MAX_SHIFT = 7
 SCORE_MULTIPLIERS = (1, 10, 100)
+# An `in_game` flag that needs more than one byte: the list of tests where one
+# of them (ANY) or every one of them (ALL) says the match is running.
+IN_GAME_ANY = "any"
+IN_GAME_ALL = "all"
+IN_GAME_MODES = (IN_GAME_ANY, IN_GAME_ALL)
+IN_GAME_MIN_TESTS = 2
+IN_GAME_MAX_TESTS = 4
 BYTE_MAX = 0xFF
 
 NOT_FOUND_MESSAGE = "Não encontrei esse jogo."
@@ -92,8 +103,8 @@ class Control:
 
 
 @dataclass(frozen=True)
-class InGame:
-    """The savestate byte that tells a running match from the attract screen.
+class InGameTest:
+    """One savestate byte of the in-game flag and the value that means playing.
 
     The catalogue gives the byte value that means "playing" (`is`) or the one
     that means "not playing" (`not`), never both.
@@ -104,33 +115,62 @@ class InGame:
     not_value: int | None = None
 
     def payload(self) -> dict:
-        flag: dict = {"offset": self.offset}
+        test: dict = {"offset": self.offset}
         if self.is_value is not None:
-            flag["is"] = self.is_value
+            test["is"] = self.is_value
         else:
-            flag["not"] = self.not_value
-        return flag
+            test["not"] = self.not_value
+        return test
+
+
+@dataclass(frozen=True)
+class InGame:
+    """When a match is running: one byte test, or two to four of them.
+
+    With `mode` ANY (the default) one test is enough; with ALL every test must
+    hold. Pitfall! needs ANY: while a life is lost it freezes the frame and plays
+    the death tune at the same time, so no single byte says "the player is still
+    in the game" through a death. River Raid needs ALL: its lives cell is blank
+    outside a match and zero for the first frames after power-on, when the
+    demonstration's score is already in memory.
+    """
+
+    tests: tuple[InGameTest, ...]
+    mode: str = IN_GAME_ANY
+
+    def payload(self) -> dict:
+        if len(self.tests) == 1:
+            return self.tests[0].payload()
+        return {self.mode: [test.payload() for test in self.tests]}
 
 
 @dataclass(frozen=True)
 class ScoreBlock:
     """Where a game keeps its score in the core's savestate (`score` in the file).
 
-    `bcd` lists the offsets of the packed-BCD bytes, most significant first, and
-    `multiplier` restores the digits the game does not store (Frogger never keeps
-    the constant units 0).
+    Exactly one of `bcd` (two decimal digits per byte, packed) and `digits` (one
+    digit per byte, `digit_shift` bits up in the byte, `blank` marking an empty
+    cell) says how the bytes read, and `multiplier` restores the digits the game
+    does not store (Frogger never keeps the constant units 0).
     """
 
-    bcd: tuple[int, ...]
     multiplier: int
     in_game: InGame
+    bcd: tuple[int, ...] | None = None
+    digits: tuple[int, ...] | None = None
+    digit_shift: int = 0
+    blank: int | None = None
 
     def payload(self) -> dict:
-        return {
-            "bcd": list(self.bcd),
-            "multiplier": self.multiplier,
-            "inGame": self.in_game.payload(),
-        }
+        block = {"multiplier": self.multiplier, "inGame": self.in_game.payload()}
+        if self.bcd is not None:
+            block["bcd"] = list(self.bcd)
+        else:
+            block["digits"] = list(self.digits or ())
+            block["digitShift"] = self.digit_shift
+            if self.blank is not None:
+                block["blank"] = self.blank
+        return block
 
 
 @dataclass(frozen=True)
@@ -366,25 +406,82 @@ def _score_block(where: str, entry: dict) -> ScoreBlock | None:
     Only an emulated game can have one: its score lives in a savestate the page
     reads. The offsets are not checked against the state length here -- that is
     the core's business at runtime -- but they have to be numbers that could be
-    one, and the in-game flag has to say which byte value means "playing".
+    one, the block has to say how its bytes read, and the in-game flag has to say
+    which byte value means "playing".
     """
     raw = entry.get("score")
     if raw is None:
         return None
     if not isinstance(raw, dict):
         raise CatalogueError(
-            f"{where}: 'score' precisa ser um bloco com 'bcd', 'multiplier' e 'in_game'."
+            f"{where}: 'score' precisa ser um bloco com 'bcd' ou 'digits', 'multiplier'"
+            " e 'in_game'."
         )
-    bcd = raw.get("bcd")
+    has_bcd, has_digits = "bcd" in raw, "digits" in raw
+    if has_bcd == has_digits:
+        raise CatalogueError(
+            f"{where}: 'score' precisa de exatamente um entre 'bcd' e 'digits'"
+            " (bcd = dois dígitos por byte; digits = um dígito por byte)."
+        )
+    if has_bcd:
+        # `digit_shift` and `blank` describe a byte holding one digit: they say
+        # nothing about packed BCD, and a block that carried them would read as
+        # if it did.
+        stray = [key for key in ("digit_shift", "blank") if key in raw]
+        if stray:
+            raise CatalogueError(
+                f"{where}: 'score.{stray[0]}' só vale com 'digits' (não com 'bcd')."
+            )
+        bcd = _score_offsets(where, raw, "bcd", SCORE_MAX_BYTES)
+        # Two digits per byte: the widest number the bytes can hold.
+        highest = int("99" * len(bcd)) * _score_multiplier(where, raw)
+        block = ScoreBlock(
+            bcd=bcd,
+            multiplier=_score_multiplier(where, raw),
+            in_game=_in_game(where, raw.get("in_game")),
+        )
+    else:
+        digits = _score_offsets(where, raw, "digits", SCORE_MAX_DIGITS)
+        multiplier = _score_multiplier(where, raw)
+        # One digit per byte: the widest number the bytes can hold.
+        highest = (10 ** len(digits) - 1) * multiplier
+        block = ScoreBlock(
+            digits=digits,
+            digit_shift=_digit_shift(where, raw),
+            blank=_blank(where, raw),
+            multiplier=multiplier,
+            in_game=_in_game(where, raw.get("in_game")),
+        )
+    # The server refuses a pontuação above its own cap, so a block that could
+    # decode one would only ever hand the kid a save that cannot succeed.
+    # `scores` imports this module (`by_id`), so it is imported here.
+    from . import scores
+
+    if highest > scores.SCORE_MAX:
+        highest_text = f"{highest:,}".replace(",", ".")
+        raise CatalogueError(
+            f"{where}: 'score' pode ler até {highest_text} pontos, acima do limite de"
+            f" {scores.SCORE_MAX_TEXT}."
+        )
+    return block
+
+
+def _score_offsets(where: str, raw: dict, key: str, most: int) -> tuple[int, ...]:
+    """The offsets of a `score` list, most significant first (1 to `most` of them)."""
+    values = raw.get(key)
     if (
-        not isinstance(bcd, list)
-        or not 1 <= len(bcd) <= SCORE_MAX_BYTES
-        or not all(_is_offset(byte) for byte in bcd)
+        not isinstance(values, list)
+        or not 1 <= len(values) <= most
+        or not all(_is_offset(value) for value in values)
     ):
         raise CatalogueError(
-            f"{where}: 'score.bcd' precisa ser uma lista de 1 a {SCORE_MAX_BYTES} posições"
+            f"{where}: 'score.{key}' precisa ser uma lista de 1 a {most} posições"
             " (números inteiros ≥ 0), da mais significativa para a menos."
         )
+    return tuple(values)
+
+
+def _score_multiplier(where: str, raw: dict) -> int:
     multiplier = raw.get("multiplier")
     if (
         not isinstance(multiplier, int)
@@ -395,26 +492,67 @@ def _score_block(where: str, entry: dict) -> ScoreBlock | None:
             f"{where}: 'score.multiplier' precisa ser 1, 10 ou 100 (os dígitos que o jogo"
             " não guarda)."
         )
-    # The server refuses a pontuação above its own cap, so a block that could
-    # decode one would only ever hand the kid a save that cannot succeed: the
-    # widest number these bytes can hold, times the multiplier, has to fit.
-    # `scores` imports this module (`by_id`), so it is imported here.
-    from . import scores
+    return multiplier
 
-    highest = int("99" * len(bcd)) * multiplier
-    if highest > scores.SCORE_MAX:
-        highest_text = f"{highest:,}".replace(",", ".")
+
+def _digit_shift(where: str, raw: dict) -> int:
+    """How far a digit sits up in its byte: the byte is `dígito << digit_shift`."""
+    if "digit_shift" not in raw:
+        return 0
+    shift = raw["digit_shift"]
+    if not _is_offset(shift) or shift > SCORE_MAX_SHIFT:
         raise CatalogueError(
-            f"{where}: 'score' pode ler até {highest_text} pontos, acima do limite de"
-            f" {scores.SCORE_MAX_TEXT}."
+            f"{where}: 'score.digit_shift' precisa ser um número inteiro de 0 a"
+            f" {SCORE_MAX_SHIFT} (o byte é o dígito deslocado de 'digit_shift' bits)."
         )
-    return ScoreBlock(
-        bcd=tuple(bcd), multiplier=multiplier, in_game=_in_game(where, raw.get("in_game"))
-    )
+    return shift
+
+
+def _blank(where: str, raw: dict) -> int | None:
+    """The byte code of an empty digit cell (the game suppresses leading zeros)."""
+    if "blank" not in raw:
+        return None
+    value = raw["blank"]
+    if not _is_byte(value):
+        raise CatalogueError(
+            f"{where}: 'score.blank' precisa ser um byte (0 a 255): o código da casa vazia."
+        )
+    return value
 
 
 def _in_game(where: str, raw: object) -> InGame:
-    """The `in_game` flag of a `score` block: an offset and `is` or `not`."""
+    """The `in_game` flag: one test, an `any` list, or an `all` list."""
+    if not isinstance(raw, dict):
+        raise CatalogueError(
+            f"{where}: 'score.in_game' precisa de 'offset' e de um entre 'is' e 'not'"
+            f" — ou de '{IN_GAME_ANY}'/'{IN_GAME_ALL}', com"
+            f" {IN_GAME_MIN_TESTS} a {IN_GAME_MAX_TESTS} testes."
+        )
+    modes = [mode for mode in IN_GAME_MODES if mode in raw]
+    if not modes:
+        return InGame(tests=(_in_game_test(where, raw),))
+    if len(modes) > 1:
+        raise CatalogueError(
+            f"{where}: 'score.in_game' aceita '{IN_GAME_ANY}' ou '{IN_GAME_ALL}', não os dois."
+        )
+    mode = modes[0]
+    stray = [key for key in ("offset", "is", "not") if key in raw]
+    if stray:
+        raise CatalogueError(
+            f"{where}: 'score.in_game' com '{mode}' não leva {', '.join(stray)}"
+            " (cada teste da lista tem o seu)."
+        )
+    tests = raw[mode]
+    if not isinstance(tests, list) or not IN_GAME_MIN_TESTS <= len(tests) <= IN_GAME_MAX_TESTS:
+        raise CatalogueError(
+            f"{where}: 'score.in_game.{mode}' precisa ser uma lista de"
+            f" {IN_GAME_MIN_TESTS} a {IN_GAME_MAX_TESTS} testes."
+        )
+    return InGame(tests=tuple(_in_game_test(where, test) for test in tests), mode=mode)
+
+
+def _in_game_test(where: str, raw: object) -> InGameTest:
+    """One byte of the flag: an offset and `is` or `not`."""
     if not isinstance(raw, dict):
         raise CatalogueError(
             f"{where}: 'score.in_game' precisa de 'offset' e de um entre 'is' e 'not'."
@@ -432,7 +570,7 @@ def _in_game(where: str, raw: object) -> InGame:
     value = raw[key]
     if not _is_byte(value):
         raise CatalogueError(f"{where}: 'score.in_game.{key}' precisa ser um byte (0 a 255).")
-    return InGame(
+    return InGameTest(
         offset=offset, is_value=value if has_is else None, not_value=None if has_is else value
     )
 
