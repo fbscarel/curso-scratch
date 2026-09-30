@@ -1,9 +1,12 @@
 import { readAdminBase } from "@/lib/adminBase";
 import type {
+	AdminGames,
 	AdminSession,
 	AdminStudent,
 	AdminUpload,
 	Attendance,
+	Game,
+	GamesView,
 	Lesson,
 	LessonSheets,
 	OverrideView,
@@ -464,6 +467,31 @@ export function listSheets(signal?: AbortSignal): Promise<LessonSheets[]> {
 	);
 }
 
+/**
+ * listGames is the games the teacher has made visible, and the mode they are
+ * visible in.
+ *
+ * The list is already filtered by the server -- the mode decides what a kid may
+ * play -- so the screens show what they are given rather than re-deciding it.
+ */
+export function listGames(signal?: AbortSignal): Promise<GamesView> {
+	return request<GamesView>(`${API_PREFIX}/games`, optionalSignal(signal));
+}
+
+/**
+ * getGame is one visible game, by id.
+ *
+ * The id reaches this from the URL bar (`/jogos/<id>`), which is why it is
+ * escaped: the server answers 404 for anything that is not a visible game, so
+ * nothing here has to know the catalogue.
+ */
+export function getGame(id: string, signal?: AbortSignal): Promise<Game> {
+	return request<Game>(
+		`${API_PREFIX}/games/${encodeURIComponent(id)}`,
+		optionalSignal(signal),
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Admin API
 // ---------------------------------------------------------------------------
@@ -629,4 +657,29 @@ export function moveUpload(id: number, lessonNumber: number): Promise<void> {
 /** adminLessonZipUrl is the whole aula as one download. */
 export function adminLessonZipUrl(lessonNumber: number): string {
 	return adminPath(`/uploads/lesson/${lessonNumber}.zip`);
+}
+
+/**
+ * getAdminGames is the whole catalogue plus the two settings.
+ *
+ * The catalogue and not only the visible games: the teacher has to see the
+ * entries that are NOT ready, with the reason, or a game that vanished from the
+ * kid's screen would be a mystery.
+ */
+export function getAdminGames(signal?: AbortSignal): Promise<AdminGames> {
+	return request<AdminGames>(adminPath("/games"), optionalSignal(signal));
+}
+
+/**
+ * putGamesMode writes both settings in one request.
+ *
+ * Both, not only the one that changed: they are one state (which game is on,
+ * and whether the whole catalogue is), and sending them together is what stops
+ * a screen that only knew one of them from undoing the other.
+ */
+export function putGamesMode(mode: {
+	activeGame: string | null;
+	freeMode: boolean;
+}): Promise<void> {
+	return mutate(adminPath("/games/mode"), { method: "PUT", body: mode });
 }

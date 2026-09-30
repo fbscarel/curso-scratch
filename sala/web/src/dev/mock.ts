@@ -55,6 +55,175 @@ interface MockUpload {
 	createdAt: string;
 }
 
+/** One catalogue entry, as `jogos.yml` states it plus what is on this laptop. */
+interface MockGame {
+	id: string;
+	title: string;
+	type: "emulated" | "builtin";
+	system: "atari2600" | "arcade" | "nes" | "snes" | "genesis";
+	core: string;
+	year: number;
+	maker: string;
+	about: string;
+	controls: { keys: string[]; action: string }[];
+	playable: boolean;
+	missing: "rom" | "core" | null;
+}
+
+/**
+ * The catalogue the screens are looked at with.
+ *
+ * It mirrors the real start set closely enough to exercise every part of the
+ * screens: all five consoles (so every pt-BR badge is on the grid), games that
+ * boot, and two that do not -- one missing its ROM and one missing its core --
+ * so the teacher's table has all three status badges. The controls are the
+ * keys the EmulatorJS default keymap really uses, which is what the real
+ * catalogue states too.
+ */
+const CATALOGUE: MockGame[] = [
+	{
+		id: "enduro",
+		title: "Enduro",
+		type: "emulated",
+		system: "atari2600",
+		core: "stella2014",
+		year: 1983,
+		maker: "Activision",
+		about: "Corrida de resistência: ultrapasse os carros dia e noite.",
+		controls: [
+			{ keys: ["←", "→"], action: "virar" },
+			{ keys: ["↑"], action: "acelerar" },
+			{ keys: ["Enter"], action: "reiniciar" },
+		],
+		playable: true,
+		missing: null,
+	},
+	{
+		id: "space-invaders",
+		title: "Space Invaders",
+		type: "emulated",
+		system: "atari2600",
+		core: "stella2014",
+		year: 1980,
+		maker: "Atari",
+		about: "Defenda a Terra dos alienígenas que descem em fileiras.",
+		controls: [
+			{ keys: ["←", "→"], action: "andar" },
+			{ keys: ["x"], action: "atirar" },
+			{ keys: ["v"], action: "select" },
+			{ keys: ["Enter"], action: "reiniciar" },
+		],
+		playable: true,
+		missing: null,
+	},
+	{
+		id: "pitfall",
+		title: "Pitfall!",
+		type: "emulated",
+		system: "atari2600",
+		core: "stella2014",
+		year: 1982,
+		maker: "Activision",
+		about: "Atravesse a selva pulando troncos, buracos e jacarés.",
+		controls: [
+			{ keys: ["←", "→"], action: "andar" },
+			{ keys: ["x"], action: "pular" },
+		],
+		playable: true,
+		missing: null,
+	},
+	{
+		id: "frogger",
+		title: "Frogger",
+		type: "emulated",
+		system: "arcade",
+		core: "mame2003_plus",
+		year: 1981,
+		maker: "Konami",
+		about: "Atravesse a rua e o rio para levar o sapo até a casa.",
+		controls: [
+			{ keys: ["↑", "↓", "←", "→"], action: "pular" },
+			{ keys: ["v"], action: "ficha (moeda)" },
+			{ keys: ["Enter"], action: "começar" },
+		],
+		playable: true,
+		missing: null,
+	},
+	{
+		id: "galaga",
+		title: "Galaga",
+		type: "emulated",
+		system: "arcade",
+		core: "mame2003_plus",
+		year: 1981,
+		maker: "Namco",
+		about: "Pilote a nave e destrua as ondas de alienígenas.",
+		controls: [
+			{ keys: ["←", "→"], action: "mover" },
+			{ keys: ["x"], action: "atirar" },
+			{ keys: ["v"], action: "ficha (moeda)" },
+			{ keys: ["Enter"], action: "começar" },
+		],
+		playable: true,
+		missing: null,
+	},
+	{
+		id: "super-mario-bros",
+		title: "Super Mario Bros.",
+		type: "emulated",
+		system: "nes",
+		core: "fceumm",
+		year: 1985,
+		maker: "Nintendo",
+		about: "Corra, pule e chegue ao castelo para salvar a princesa.",
+		controls: [
+			{ keys: ["←", "→"], action: "andar" },
+			{ keys: ["x"], action: "pular" },
+			{ keys: ["z"], action: "correr" },
+			{ keys: ["Enter"], action: "começar" },
+		],
+		playable: true,
+		missing: null,
+	},
+	{
+		id: "super-mario-world",
+		title: "Super Mario World",
+		type: "emulated",
+		system: "snes",
+		core: "snes9x",
+		year: 1990,
+		maker: "Nintendo",
+		about: "Explore a Ilha dos Dinossauros com o Yoshi.",
+		controls: [
+			{ keys: ["←", "→"], action: "andar" },
+			{ keys: ["x"], action: "pular" },
+			{ keys: ["Enter"], action: "começar" },
+		],
+		playable: false,
+		missing: "rom",
+	},
+	{
+		id: "sonic-the-hedgehog",
+		title: "Sonic the Hedgehog",
+		type: "emulated",
+		system: "genesis",
+		core: "genesis_plus_gx",
+		year: 1991,
+		maker: "Sega",
+		about: "Corra rápido, colete argolas e derrote o Dr. Robotnik.",
+		controls: [
+			{ keys: ["←", "→"], action: "correr" },
+			{ keys: ["x"], action: "pular" },
+			{ keys: ["Enter"], action: "começar" },
+		],
+		playable: false,
+		missing: "core",
+	},
+];
+
+/** The game the mock starts on, and the mode it starts in. */
+const DEFAULT_ACTIVE_GAME = "enduro";
+
 /** The fake class: the invented names every test and fixture uses. */
 const NAMES = [
 	"Ana Teste",
@@ -89,6 +258,12 @@ let uploads: MockUpload[] = [];
 let override: number | null = null;
 let signedIn = true;
 let identity: number | null = null;
+let activeGame: string | null = DEFAULT_ACTIVE_GAME;
+/**
+ * Free mode is the mock's starting mode, so `/jogo` is the grid the screen is
+ * looked at with. "Um jogo" is one click away on the teacher's screen.
+ */
+let freeMode = true;
 
 /** isoDay is `offset` days from today, as the ISO day the API stores. */
 function isoDay(offset: number): string {
@@ -125,6 +300,8 @@ function resetData(): void {
 	override = null;
 	signedIn = true;
 	identity = null;
+	activeGame = DEFAULT_ACTIVE_GAME;
+	freeMode = true;
 }
 
 /**
@@ -399,6 +576,46 @@ function sheetList(): unknown {
 }
 
 /**
+ * visibleGames is what the kid's API answers with, by the same rule the server
+ * uses: free mode is every playable game, single mode is the active one when it
+ * can be played, and nothing otherwise.
+ */
+function visibleGames(): MockGame[] {
+	if (freeMode) return CATALOGUE.filter((game) => game.playable);
+	const active = CATALOGUE.find((game) => game.id === activeGame);
+	return active?.playable ? [active] : [];
+}
+
+/** publicGame is one entry as the kid's screens carry it: no playability. */
+function publicGame(game: MockGame): unknown {
+	return {
+		id: game.id,
+		title: game.title,
+		type: game.type,
+		system: game.system,
+		year: game.year,
+		maker: game.maker,
+		about: game.about,
+		controls: game.controls,
+	};
+}
+
+/** adminGameRow is one entry as the teacher's table carries it. */
+function adminGameRow(game: MockGame): unknown {
+	return {
+		id: game.id,
+		title: game.title,
+		type: game.type,
+		system: game.system,
+		core: game.core,
+		year: game.year,
+		maker: game.maker,
+		playable: game.playable,
+		missing: game.missing,
+	};
+}
+
+/**
  * fileResponse stands in for a download.
  *
  * The bytes are a sentence rather than a real file: nothing is committed for the
@@ -465,6 +682,19 @@ function handlePublic(
 		return fileResponse(upload.name);
 	}
 	if (method === "GET" && api === "/sheets") return json(200, sheetList());
+	if (method === "GET" && api === "/games") {
+		return json(200, {
+			mode: freeMode ? "free" : "single",
+			games: visibleGames().map(publicGame),
+		});
+	}
+	const oneGame = /^\/games\/([a-z0-9-]+)$/.exec(api);
+	if (method === "GET" && oneGame) {
+		const id = oneGame[1] ?? "";
+		const game = visibleGames().find((item) => item.id === id);
+		if (!game) return failure(404, "Este jogo não está liberado.");
+		return json(200, publicGame(game));
+	}
 	return null;
 }
 
@@ -604,6 +834,33 @@ function handleAdmin(
 			override = number;
 			return empty();
 		}
+	}
+
+	if (api === "/games" && method === "GET") {
+		return json(200, {
+			activeGame,
+			freeMode,
+			games: CATALOGUE.map(adminGameRow),
+		});
+	}
+
+	if (api === "/games/mode" && method === "PUT") {
+		const wanted = field(body, "activeGame");
+		const wantedFree = field(body, "freeMode");
+		if (typeof wantedFree !== "boolean") {
+			return failure(422, "Modo de jogo inválido.");
+		}
+		if (wanted !== null && typeof wanted !== "string") {
+			return failure(422, "Jogo inválido.");
+		}
+		const entry =
+			wanted === null ? null : CATALOGUE.find((game) => game.id === wanted);
+		if (wanted !== null && !entry?.playable) {
+			return failure(422, "Este jogo não está pronto para jogar.");
+		}
+		activeGame = wanted;
+		freeMode = wantedFree;
+		return empty();
 	}
 
 	const sheet = /^\/attendance\/(\d+)$/.exec(api);

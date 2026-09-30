@@ -2,24 +2,36 @@ import {
 	CalendarDays,
 	FileText,
 	FolderOpen,
+	Gamepad2,
 	UploadCloud,
 	UserRound,
 } from "lucide-react";
 import { ComingSoon, FeatureTile } from "@/components/Tiles";
+import { listGames } from "@/lib/api";
 import { formatLongDate } from "@/lib/format";
-import type { PublicSession } from "@/lib/types";
+import type { GamesView, PublicSession } from "@/lib/types";
+import { useAsync } from "@/lib/useAsync";
 
 /**
  * Home is the screen the lab PCs sit on between classes.
  *
  * Which lesson is running today, and the things a kid can do right now. The
- * tiles are the features that exist and open something; the one thing this
- * course will still grow -- the games -- is named in the "em breve" card rather
- * than shown as a tile that opens nothing, because a control that does nothing
- * teaches a kid that the screen lies.
+ * tiles are the features that exist and open something.
+ *
+ * The Jogo tile is only there when there is a game to open, and it names what
+ * is behind it: in single mode the game itself, in free mode the whole
+ * catalogue. With no game visible the tile would open an empty screen, so the
+ * "em breve" card stands in its place -- and while the answer is still coming,
+ * neither is shown, because a card that guessed would be wrong half the time.
  */
 export function Home({ session }: { session: PublicSession }) {
 	const lesson = session.currentLesson;
+	const games = useAsync<GamesView>(
+		(signal) => listGames(signal),
+		"home-games",
+	);
+	const view = games.data;
+
 	return (
 		<div className="space-y-8">
 			<section className="animate-in rounded-3xl border-2 border-border bg-card p-8 shadow-sm duration-300 fade-in slide-in-from-bottom-4">
@@ -51,6 +63,23 @@ export function Home({ session }: { session: PublicSession }) {
 			<section className="space-y-4">
 				<h2 className="font-extrabold text-3xl">O que dá para fazer</h2>
 				<div className="grid gap-4 sm:grid-cols-2">
+					{/* The jogo goes FIRST when there is one. It is what a kid opens
+					    the screen for, and the grid is two columns on the lab's
+					    1366x768 monitors -- further down, the tile they want most
+					    would be the one below the fold. */}
+					{view !== null && view.games.length > 0 && (
+						<FeatureTile
+							to="/jogo"
+							title={
+								view.mode === "single"
+									? (view.games[0]?.title ?? "Jogo")
+									: "Jogos"
+							}
+							description="Vá jogar!"
+							icon={<Gamepad2 className="size-9" />}
+							color="control"
+						/>
+					)}
 					<FeatureTile
 						to="/entregar"
 						title="Entregar trabalho"
@@ -79,7 +108,9 @@ export function Home({ session }: { session: PublicSession }) {
 						icon={<UserRound className="size-9" />}
 						color="events"
 					/>
-					<ComingSoon>Em breve: jogos!</ComingSoon>
+					{view !== null && view.games.length === 0 && (
+						<ComingSoon>Em breve: jogos!</ComingSoon>
+					)}
 				</div>
 			</section>
 		</div>

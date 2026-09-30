@@ -15,10 +15,10 @@ from typing import Any
 
 import pytest
 
-from app import create_app
+from app import create_app, games
 from app.auth import CSRF_HEADER
 from app.config import Config, hash_password
-from app.db import SETTING_LESSON_OVERRIDE, connect, migrate, set_setting
+from app.db import SETTING_LESSON_OVERRIDE, connect, delete_setting, migrate, set_setting
 
 PASSWORD = "senha-do-professor"
 ADMIN_PATH = "/professor-teste"
@@ -209,3 +209,66 @@ def upload_file() -> Callable[..., Any]:
         )
 
     return send
+
+
+# --- games -----------------------------------------------------------------
+
+
+@pytest.fixture
+def roms(tmp_path: Path, monkeypatch) -> Path:
+    """A stand-in for the ROM directory (`SALA_ROMS`, `/mnt/z/roms` in class)."""
+    directory = tmp_path / "roms"
+    directory.mkdir()
+    monkeypatch.setenv("SALA_ROMS", str(directory))
+    return directory
+
+
+@pytest.fixture
+def emulator(tmp_path: Path, monkeypatch) -> Path:
+    """A stand-in for the EmulatorJS data directory (`SALA_EMULADOR`)."""
+    directory = tmp_path / "emulatorjs"
+    directory.mkdir()
+    monkeypatch.setenv("SALA_EMULADOR", str(directory))
+    return directory
+
+
+@pytest.fixture
+def install_games(roms: Path, emulator: Path) -> Callable[..., None]:
+    """Write the stand-ins a game needs to be playable: its ROM and its core.
+
+    `install_games()` does the whole catalogue; `install_games("enduro")` just
+    one game. `rom=False` / `core=False` leave that piece missing on purpose.
+    """
+
+    def install(*game_ids: str, rom: bool = True, core: bool = True) -> None:
+        for jogo in games.catalogue():
+            if game_ids and jogo.id not in game_ids:
+                continue
+            if jogo.rom and rom:
+                path = roms / jogo.rom
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(f"rom de teste: {jogo.id}".encode())
+            if jogo.core and core:
+                path = emulator / "cores" / f"{jogo.core}-wasm.data"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"core de teste")
+
+    return install
+
+
+@pytest.fixture
+def set_game_mode(db) -> Callable[..., None]:
+    """Write the two settings of the games: `active_game` and `free_mode`."""
+
+    def set_it(*, active: str | None = None, free: bool = False) -> None:
+        if active is None:
+            delete_setting(db, games.SETTING_ACTIVE_GAME)
+        else:
+            set_setting(db, games.SETTING_ACTIVE_GAME, active)
+        if free:
+            set_setting(db, games.SETTING_FREE_MODE, games.FREE_MODE_VALUE)
+        else:
+            delete_setting(db, games.SETTING_FREE_MODE)
+        db.commit()
+
+    return set_it

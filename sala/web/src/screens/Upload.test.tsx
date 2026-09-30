@@ -15,8 +15,15 @@ import { Upload } from "@/screens/Upload";
  */
 vi.mock("@/lib/api", () => ({ uploadFile: vi.fn() }));
 
-/** The burst a saved file earns, which jsdom has no canvas for. */
-vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
+/** The burst a saved file earns, which jsdom has no canvas for. The screen
+ *  builds its own instance (`create`, no blob worker), so that is what the mock
+ *  has to answer. */
+vi.mock("canvas-confetti", () => {
+	const celebrate = vi.fn();
+	return {
+		default: Object.assign(celebrate, { create: vi.fn(() => celebrate) }),
+	};
+});
 
 const uploadMock = vi.mocked(uploadFile);
 

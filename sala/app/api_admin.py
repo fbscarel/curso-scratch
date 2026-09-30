@@ -14,13 +14,14 @@ from datetime import date
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
-from . import auth, uploads
+from . import auth, games, uploads
 from .db import SETTING_LESSON_OVERRIDE, delete_setting, get_db, set_setting
 from .lessons import current_lesson, get_lesson, lesson_override, today
 
 bp = Blueprint("api_admin", __name__)
 
-# Tables that keep a student/lesson from being deleted (S5 adds its own here).
+# Tables that keep a student/lesson from being deleted. Later tables that
+# reference a student or a lesson add themselves here.
 STUDENT_REFERENCES: tuple[tuple[str, str], ...] = (
     ("attendance", "student_id"),
     ("uploads", "student_id"),
@@ -471,3 +472,66 @@ def uploads_zip(number: int) -> Response:
     # request that built it, not even if the client drops mid-download.
     archive.unlink(missing_ok=True)
     return response
+
+
+# --- games -----------------------------------------------------------------
+
+
+@bp.get("/games")
+@auth.admin_required
+def games_list() -> Response:
+    """The whole catalogue, with what is missing for each game to run."""
+    connection = get_db()
+    return jsonify(
+        activeGame=games.active_game(connection),
+        freeMode=games.free_mode(connection),
+        games=[games.admin_payload(jogo) for jogo in games.catalogue()],
+    )
+
+
+@bp.put("/games/mode")
+@auth.admin_required
+def games_mode() -> Response:
+    """Switch between one game and free mode.
+
+    Both fields are read and validated before anything is written: a request the
+    API refuses with 422 leaves the settings exactly as it found them.
+    """
+    connection = get_db()
+    data = auth.json_body()
+    free: bool | None = None
+    active_sent = False
+    active: str | None = None
+    if "freeMode" in data:
+        raw = data["freeMode"]
+        if not isinstance(raw, bool):
+            raise auth.ApiError(422, "O campo 'freeMode' precisa ser true ou false.")
+        free = raw
+    if "activeGame" in data:
+        active_sent = True
+        raw = data["activeGame"]
+        if raw is None:
+            active = None
+        elif not isinstance(raw, str):
+            raise auth.ApiError(422, "O campo 'activeGame' precisa ser o id de um jogo (ou null).")
+        else:
+            jogo = games.by_id(raw)
+            if jogo is None:
+                raise auth.ApiError(422, f"Não conheço o jogo {raw}.")
+            if not games.playable(jogo):
+                raise auth.ApiError(422, games.not_ready_message(jogo))
+            active = jogo.id
+    if free is None and not active_sent:
+        raise auth.ApiError(422, "Mande o modo: activeGame (um jogo ou null) ou freeMode.")
+    if free is not None:
+        if free:
+            set_setting(connection, games.SETTING_FREE_MODE, games.FREE_MODE_VALUE)
+        else:
+            delete_setting(connection, games.SETTING_FREE_MODE)
+    if active_sent:
+        if active is None:
+            delete_setting(connection, games.SETTING_ACTIVE_GAME)
+        else:
+            set_setting(connection, games.SETTING_ACTIVE_GAME, active)
+    connection.commit()
+    return Response(status=204)

@@ -34,7 +34,7 @@ def test_connect_turns_on_wal_and_foreign_keys(config):
         connection.close()
 
 
-def test_schema_matches_the_spec(db):
+def test_schema_has_the_expected_columns_and_keys(db):
     students = _columns(db, "students")
     assert list(students) == ["id", "name", "active"]
     assert students["id"]["pk"] == 1

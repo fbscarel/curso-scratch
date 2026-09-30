@@ -1,6 +1,7 @@
 # Sala — servidor local do curso de Scratch (rede da sala de aula)
 # Uso: just              (lista as receitas)
 #      just sala-config  (define o caminho do professor e a senha)
+#      just sala-emulador (baixa o emulador: uma vez por máquina)
 #      just sala         (compila o site e sobe o servidor para a turma)
 #      just test         (roda os testes do servidor)
 #      just check        (confere tudo: servidor e site)
@@ -36,8 +37,14 @@ web-test:
     cd web && pnpm test
 
 # Compila o site e sobe o servidor para a turma (imprime os endereços da rede local)
-sala: venv web-build
-    .venv/bin/python -m app.serve
+# Aceita o jogo do dia: `just sala jogo=enduro` ou `just sala enduro`
+# (e `just sala jogo=livre` para o modo livre)
+sala *args: venv web-build
+    .venv/bin/python -m app.serve {{args}}
+
+# Baixa e confere (sha256) os arquivos do emulador em vendor/emulatorjs/data
+sala-emulador: venv
+    .venv/bin/python -m app.emulator_download
 
 # Roda os testes do servidor (pytest)
 test: venv

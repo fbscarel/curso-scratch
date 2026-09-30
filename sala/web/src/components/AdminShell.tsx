@@ -10,13 +10,14 @@ import type { AdminCurrentLesson, AdminSession } from "@/lib/types";
 import { useAction } from "@/lib/useAction";
 import { cn } from "@/lib/utils";
 
-/** The four sections of the teacher's app, in the order they are worked in. */
+/** The six sections of the teacher's app, in the order they are worked in. */
 const NAV: { route: Route; label: string }[] = [
 	{ route: { name: "admin-current" }, label: "Aula atual" },
 	{ route: { name: "admin-students" }, label: "Alunos" },
 	{ route: { name: "admin-lessons" }, label: "Aulas" },
 	{ route: { name: "admin-attendance" }, label: "Presença" },
 	{ route: { name: "admin-uploads" }, label: "Entregas" },
+	{ route: { name: "admin-games" }, label: "Jogos" },
 ];
 
 /**

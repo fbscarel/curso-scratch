@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jogo — Sala</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+  #game { width: 100%; height: 100%; }
+  #aviso {
+    margin: 0; padding: 24px; color: #fff; background: #111;
+    font-family: system-ui, sans-serif; font-size: 20px; line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+<div id="game"__SALA_GAME_HIDDEN__></div>
+<p id="aviso"__SALA_AVISO_HIDDEN__>__SALA_AVISO__</p>
+<script type="application/json" id="sala-game">__SALA_GAME_CONFIG__</script>
+<script src="/emulador/play.js"></script>
+</body>
+</html>

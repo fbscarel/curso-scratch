@@ -1,5 +1,5 @@
-"""Public API (`/api`): the session, the student list, "Quem é você?" and the
-entregas of the student of this session.
+"""Public API (`/api`): the session, the student list, "Quem é você?", the
+entregas of the student of this session and the games of the day.
 
 No authentication: the lab PCs only pick a name. Every non-GET request still
 needs the session's CSRF token (see `auth.guard`).
@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import sqlite3
 
-from flask import Blueprint, Response, current_app, jsonify, request, session
+from flask import Blueprint, Response, current_app, jsonify, request, send_file, session
 
-from . import auth, uploads
+from . import auth, games, uploads
 from .db import get_db
 from .lessons import current_lesson, today
 from .sheets import sheets_payload
@@ -173,5 +173,53 @@ def upload_download(upload_id: int) -> Response:
 
 @bp.get("/sheets")
 def sheets_list() -> Response:
-    """The folhas of every aula up to the current one (G9)."""
+    """The folhas of every aula up to the current one."""
     return jsonify(sheets_payload(get_db()))
+
+
+# --- games -----------------------------------------------------------------
+
+
+def _visible_game(connection: sqlite3.Connection, game_id: str) -> games.Jogo:
+    """One game a kid may see right now, or 404."""
+    jogo = games.by_id(game_id)
+    if jogo is None or jogo not in games.visible_games(connection):
+        raise auth.ApiError(404, games.NOT_FOUND_MESSAGE)
+    return jogo
+
+
+@bp.get("/games")
+def games_list() -> Response:
+    """The games of the day: all playable ones in free mode, else the active one."""
+    connection = get_db()
+    return jsonify(
+        mode="free" if games.free_mode(connection) else "single",
+        games=[games.game_payload(jogo) for jogo in games.visible_games(connection)],
+    )
+
+
+@bp.get("/games/<game_id>")
+def game_one(game_id: str) -> Response:
+    return jsonify(games.game_payload(_visible_game(get_db(), game_id)))
+
+
+@bp.get("/games/<game_id>/rom")
+@bp.get("/games/<game_id>/rom/<path:filename>")
+def game_rom(game_id: str, filename: str | None = None) -> Response:
+    """The ROM bytes of a visible game.
+
+    The path never comes from the request: it is the catalogue's own `rom`, and
+    `games.rom_file` refuses anything that does not resolve inside `SALA_ROMS`.
+    The second rule exists for the emulator, which names the file inside its
+    virtual filesystem after the URL's last segment (`games.rom_url`); whatever
+    a client puts there is only decoration.
+    """
+    jogo = _visible_game(get_db(), game_id)
+    path = games.rom_file(jogo)
+    if jogo.type != games.TYPE_EMULATED or path is None:
+        raise auth.ApiError(404, games.NOT_FOUND_MESSAGE)
+    response = send_file(path, mimetype="application/octet-stream")
+    # A ROM is not something to keep in the browser cache: the teacher may swap
+    # the file, and the kid must get what is on disk now.
+    response.headers["Cache-Control"] = "no-store"
+    return response

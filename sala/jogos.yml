@@ -1,0 +1,180 @@
+# The sala's game catalogue.
+#
+# `rom` is relative to the ROM directory (SALA_ROMS, default /mnt/z/roms) and can
+# never leave it. `core` is the EmulatorJS 4.2.3 core id (the same one as the
+# emulador.sha256 manifest). `controls` are the real keys the emulator uses
+# (player 1): arrows, x = B/fire, z = A, s = Y, a = X, q/e = L/R,
+# v = SELECT (coin on the arcade), Enter = START (reset on the Atari).
+#
+# This file is read and checked when the server starts: an error here shows up
+# in Portuguese naming the file and the entry, and the server does not start.
+
+- id: enduro
+  title: Enduro
+  type: emulated
+  system: atari2600
+  core: stella2014
+  rom: "atari2600/Enduro (USA).zip"
+  year: 1983
+  maker: Activision
+  about: "Corrida de resistência: ultrapasse os carros e aguente o dia e a noite."
+  controls:
+    - {keys: ["←", "→"], action: "virar"}
+    - {keys: ["x"], action: "acelerar"}
+    - {keys: ["↓"], action: "frear"}
+    - {keys: ["v"], action: "escolher a variação (select)"}
+    - {keys: ["Enter"], action: "recomeçar (reset)"}
+
+- id: space-invaders
+  title: Space Invaders
+  type: emulated
+  system: atari2600
+  core: stella2014
+  rom: "atari2600/Space Invaders (USA).zip"
+  year: 1980
+  maker: Atari
+  about: "Defenda a Terra: derrube a fileira de alienígenas antes que ela desça."
+  controls:
+    - {keys: ["←", "→"], action: "mover"}
+    - {keys: ["x"], action: "atirar"}
+    - {keys: ["v"], action: "escolher a variação (select)"}
+    - {keys: ["Enter"], action: "recomeçar (reset)"}
+
+- id: river-raid
+  title: River Raid
+  type: emulated
+  system: atari2600
+  core: stella2014
+  rom: "atari2600/River Raid (USA).zip"
+  year: 1982
+  maker: Activision
+  about: "Voe pelo rio, destrua os inimigos e não deixe o combustível acabar."
+  controls:
+    - {keys: ["←", "→"], action: "virar"}
+    - {keys: ["↑"], action: "acelerar"}
+    - {keys: ["↓"], action: "frear"}
+    - {keys: ["x"], action: "atirar"}
+    - {keys: ["v"], action: "escolher a variação (select)"}
+    - {keys: ["Enter"], action: "recomeçar (reset)"}
+
+- id: pitfall
+  title: Pitfall!
+  type: emulated
+  system: atari2600
+  core: stella2014
+  rom: "atari2600/Pitfall! - Pitfall Harry's Jungle Adventure (USA).zip"
+  year: 1982
+  maker: Activision
+  about: "Aventura na selva: corra, pule nos troncos e junte os tesouros."
+  controls:
+    - {keys: ["←", "→"], action: "correr"}
+    - {keys: ["↑"], action: "subir a escada"}
+    - {keys: ["↓"], action: "descer a escada ou a corda"}
+    - {keys: ["x"], action: "pular"}
+    - {keys: ["v"], action: "escolher a variação (select)"}
+    - {keys: ["Enter"], action: "recomeçar (reset)"}
+
+- id: frogger
+  title: Frogger
+  type: emulated
+  system: arcade
+  core: mame2003_plus
+  rom: "arcade/frogger.zip"
+  year: 1981
+  maker: Konami
+  about: "Ajude a rã a atravessar a rua e o rio sem ser atropelada."
+  controls:
+    - {keys: ["←", "→", "↑", "↓"], action: "pular para o lado"}
+    - {keys: ["v"], action: "colocar a ficha (coin)"}
+    - {keys: ["Enter"], action: "começar a partida (start)"}
+
+- id: galaga
+  title: Galaga
+  type: emulated
+  system: arcade
+  core: mame2003_plus
+  rom: "arcade/galaga.zip"
+  year: 1981
+  maker: Namco
+  about: "Nave espacial: derrube as naves inimigas e resgate a sua nave capturada."
+  controls:
+    - {keys: ["←", "→"], action: "mover"}
+    - {keys: ["x"], action: "atirar"}
+    - {keys: ["v"], action: "colocar a ficha (coin)"}
+    - {keys: ["Enter"], action: "começar a partida (start)"}
+
+- id: ms-pac-man
+  title: Ms. Pac-Man
+  type: emulated
+  system: arcade
+  core: mame2003_plus
+  rom: "arcade/mspacman.zip"
+  year: 1982
+  maker: Midway
+  about: "Coma todas as pastilhas do labirinto fugindo dos fantasmas."
+  controls:
+    - {keys: ["←", "→", "↑", "↓"], action: "andar"}
+    - {keys: ["v"], action: "colocar a ficha (coin)"}
+    - {keys: ["Enter"], action: "começar a partida (start)"}
+
+- id: donkey-kong
+  title: Donkey Kong
+  type: emulated
+  system: arcade
+  core: mame2003_plus
+  rom: "arcade/dkong.zip"
+  year: 1981
+  maker: Nintendo
+  about: "Suba as escadas, desvie dos barris e salve a moça do Kong."
+  controls:
+    - {keys: ["←", "→", "↑", "↓"], action: "andar e subir escada"}
+    - {keys: ["x"], action: "pular"}
+    - {keys: ["v"], action: "colocar a ficha (coin)"}
+    - {keys: ["Enter"], action: "começar a partida (start)"}
+
+- id: super-mario-bros
+  title: Super Mario Bros.
+  type: emulated
+  system: nes
+  core: fceumm
+  rom: "nes/Super Mario Bros. (World).zip"
+  year: 1985
+  maker: Nintendo
+  about: "Corra, pule e quebre blocos para chegar ao castelo e salvar a princesa."
+  controls:
+    - {keys: ["←", "→"], action: "andar"}
+    - {keys: ["↓"], action: "agachar"}
+    - {keys: ["z"], action: "pular (A)"}
+    - {keys: ["x"], action: "correr (B)"}
+
+- id: super-mario-world
+  title: Super Mario World
+  type: emulated
+  system: snes
+  core: snes9x
+  rom: "snes/Super Mario World (USA).zip"
+  year: 1990
+  maker: Nintendo
+  about: "Corra pelo mundo dos dinossauros e coma a fruta que dá asas."
+  controls:
+    - {keys: ["←", "→"], action: "andar"}
+    - {keys: ["↓"], action: "agachar"}
+    - {keys: ["x"], action: "pular (B)"}
+    - {keys: ["z"], action: "dar mortal (A)"}
+    - {keys: ["s"], action: "correr e pegar (Y)"}
+
+- id: sonic
+  title: Sonic the Hedgehog
+  type: emulated
+  system: genesis
+  core: genesis_plus_gx
+  rom: "genesis/Sonic The Hedgehog (USA, Europe).zip"
+  year: 1991
+  maker: Sega
+  about: "Corra muito rápido, junte os anéis e não deixe os inimigos te pegar."
+  controls:
+    - {keys: ["←", "→"], action: "correr"}
+    - {keys: ["↑"], action: "olhar para cima"}
+    - {keys: ["↓"], action: "agachar"}
+    - {keys: ["s", "x", "z"], action: "pular (A/B/C)"}
+    - {keys: ["Enter"], action: "pausar (start)"}

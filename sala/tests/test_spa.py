@@ -5,11 +5,21 @@ from __future__ import annotations
 import pytest
 from flask import abort
 
-from app import create_app
+from app import create_app, spa
 from app.auth import CSRF_HEADER
 
 ADMIN_BASE_META = '<meta name="sala-admin-base" content="/professor-teste">'
 INDEX_MARK = '<div id="root">'
+
+# The strict policy for the SPA documents: 'self' plus the inline
+# styles Radix injects to measure its popups, `data:`/`blob:` for the confetti
+# canvas and the emulator's in-memory files, and the emulator's iframe, which is
+# ours. No 'unsafe-eval': the runtime that needs it (`emulator.min.js`) is a
+# document of its own, and it keeps its own, looser policy.
+EXPECTED_SPA_CSP = (
+    "default-src 'self'; style-src 'self' 'unsafe-inline';"
+    " img-src 'self' data: blob:; frame-src 'self'"
+)
 
 
 def test_root_serves_the_index_and_never_caches_it(client):
@@ -34,13 +44,42 @@ def test_index_html_by_name_is_the_index_and_never_caches_it(client):
     assert response.headers["Cache-Control"] == "no-store"
 
 
-@pytest.mark.parametrize("path", ["/", "/quem-sou-eu", "/qualquer"])
+@pytest.mark.parametrize("path", ["/", "/index.html", "/quem-sou-eu", "/entregar", "/jogos/enduro"])
 def test_public_routes_get_the_index_without_the_admin_meta(client, path):
     response = client.get(path)
 
     assert response.status_code == 200
     assert INDEX_MARK in response.get_data(as_text=True)
     assert ADMIN_BASE_META not in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/",
+        "/index.html",
+        "/quem-sou-eu",
+        "/entregar",
+        "/jogos/enduro",
+        "/professor-teste",
+        "/professor-teste/jogos",
+    ],
+)
+def test_every_spa_document_carries_the_strict_csp(client, path):
+    # The SPA is the same index.html on every route it answers (the public
+    # screens, the admin tree, the file by name), and the policy is what keeps
+    # the bundle from reaching anything outside this laptop. It is set in the one
+    # place the document is built, so every one of them carries it.
+    response = client.get(path)
+
+    assert response.status_code == 200, path
+    assert response.headers["Content-Security-Policy"] == EXPECTED_SPA_CSP, path
+
+
+def test_the_spa_policy_never_leaves_this_laptop():
+    assert "unsafe-eval" not in spa.SPA_CSP
+    assert "http://" not in spa.SPA_CSP and "https://" not in spa.SPA_CSP
+    assert "*" not in spa.SPA_CSP
 
 
 @pytest.mark.parametrize("path", ["/professor-teste", "/professor-teste/alunos", "/professor-teste/"])

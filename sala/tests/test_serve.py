@@ -9,8 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from app import serve
+from app import games, serve
 from app.config import Config, write_config
+from app.db import connect, get_setting
 from app.serve import Interface, is_rfc1918, lan_addresses, list_interfaces
 
 SALA_DIR = Path(__file__).resolve().parents[1]
@@ -93,7 +94,7 @@ def test_main_prints_the_physical_addresses(tmp_path: Path, monkeypatch, capsys)
     served: dict = {}
     monkeypatch.setattr(serve, "waitress_serve", lambda app, **kwargs: served.update(kwargs))
 
-    assert serve.main() == 0
+    assert serve.main([]) == 0
 
     out = capsys.readouterr().out
     assert "http://192.168.99.99:8000" in out
@@ -110,19 +111,119 @@ def test_main_honours_sala_porta(tmp_path: Path, monkeypatch, capsys):
     served: dict = {}
     monkeypatch.setattr(serve, "waitress_serve", lambda app, **kwargs: served.update(kwargs))
 
-    assert serve.main() == 0
+    assert serve.main([]) == 0
 
     assert "http://192.168.99.99:9100" in capsys.readouterr().out
     assert served["port"] == 9100
 
 
 def test_main_hints_when_there_is_no_lan_address(tmp_path: Path, monkeypatch, capsys):
-    config = write_config(tmp_path / "dados" / "config.toml", admin_path="/professor-aaaa", password="senha-boa")
+    config = write_config(tmp_path / "dados" / "config.toml", admin_path="/professor-aaaa", password="senha-de-teste")
     monkeypatch.setenv("SALA_DADOS", str(config.data_dir))
     monkeypatch.setattr(serve, "list_interfaces", lambda: [Interface("lo", ("127.0.0.1",), physical=False)])
     monkeypatch.setattr(serve, "waitress_serve", lambda app, **kwargs: None)
 
-    assert serve.main() == 0
+    assert serve.main([]) == 0
 
     out = capsys.readouterr().out
     assert "Não achei nenhum endereço da rede local" in out
+
+
+# --- the game of the day ---------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "argv, expected",
+    [
+        ([], None),
+        (["enduro"], "enduro"),
+        (["jogo=enduro"], "enduro"),
+        (["jogo=livre"], "livre"),
+        (["jogo="], None),
+        (["  "], None),
+        (["jogo=enduro", "extra"], "enduro"),
+    ],
+)
+def test_the_game_argument_accepts_both_spellings(argv, expected):
+    assert serve.parse_game_argument(argv) == expected
+
+
+@pytest.fixture
+def serving(tmp_path: Path, monkeypatch) -> Config:
+    """A config in a tmp data dir and a waitress that does not really serve."""
+    config = write_config(tmp_path / "dados" / "config.toml", admin_path="/professor-aaaa", password="senha-de-teste")
+    monkeypatch.setenv("SALA_DADOS", str(config.data_dir))
+    monkeypatch.setattr(serve, "list_interfaces", lambda: [])
+    monkeypatch.setattr(serve, "waitress_serve", lambda app, **kwargs: None)
+    return config
+
+
+def test_main_sets_the_active_game(serving: Config, capsys):
+    assert serve.main(["jogo=enduro"]) == 0
+
+    connection = connect(serving.db_path)
+    try:
+        assert get_setting(connection, games.SETTING_ACTIVE_GAME) == "enduro"
+        assert get_setting(connection, games.SETTING_FREE_MODE) is None
+    finally:
+        connection.close()
+    assert "Jogo do dia: Enduro." in capsys.readouterr().out
+
+
+def test_main_accepts_the_bare_id_too(serving: Config):
+    assert serve.main(["enduro"]) == 0
+
+    connection = connect(serving.db_path)
+    try:
+        assert get_setting(connection, games.SETTING_ACTIVE_GAME) == "enduro"
+    finally:
+        connection.close()
+
+
+def test_main_turns_free_mode_on_with_livre(serving: Config, capsys):
+    assert serve.main(["jogo=livre"]) == 0
+
+    connection = connect(serving.db_path)
+    try:
+        assert get_setting(connection, games.SETTING_FREE_MODE) == games.FREE_MODE_VALUE
+    finally:
+        connection.close()
+    assert "Modo livre ligado" in capsys.readouterr().out
+
+
+def test_main_leaves_the_settings_alone_without_an_argument(serving: Config):
+    assert serve.main([]) == 0
+
+    connection = connect(serving.db_path)
+    try:
+        assert get_setting(connection, games.SETTING_ACTIVE_GAME) is None
+        assert get_setting(connection, games.SETTING_FREE_MODE) is None
+    finally:
+        connection.close()
+
+
+def test_main_refuses_an_unknown_game_listing_the_ids(serving: Config, capsys):
+    assert serve.main(["jogo=nao-existe"]) == 1
+
+    error = capsys.readouterr().err
+    assert "Jogo desconhecido: nao-existe" in error
+    assert "enduro" in error and "livre" in error
+    assert not serving.db_path.exists()  # the server never started
+
+
+def test_main_refuses_a_broken_catalogue(tmp_path: Path, monkeypatch, capsys):
+    config = write_config(tmp_path / "dados" / "config.toml", admin_path="/professor-aaaa", password="senha-de-teste")
+    monkeypatch.setenv("SALA_DADOS", str(config.data_dir))
+    monkeypatch.setattr(serve, "list_interfaces", lambda: [])
+    monkeypatch.setattr(serve, "waitress_serve", lambda app, **kwargs: None)
+
+    def broken():
+        raise games.CatalogueError("jogos.yml: entrada 1: id ruim")
+
+    monkeypatch.setattr(games, "catalogue", broken)
+
+    assert serve.main([]) == 1
+
+    error = capsys.readouterr().err
+    assert "Erro no catálogo de jogos" in error
+    assert "entrada 1" in error

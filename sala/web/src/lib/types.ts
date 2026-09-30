@@ -127,3 +127,98 @@ export interface LessonSheets {
 	lessonNumber: number;
 	sheets: Sheet[];
 }
+
+// ---------------------------------------------------------------------------
+// Jogos
+// ---------------------------------------------------------------------------
+
+/**
+ * The console a game belongs to.
+ *
+ * The values are the catalogue's own (`jogos.yml`), and they are what
+ * lib/games.ts maps to the pt-BR name a kid reads -- "Fliperama" is not a
+ * translation of `arcade` the server should have to make.
+ */
+export type GameSystem = "atari2600" | "arcade" | "nes" | "snes" | "genesis";
+
+/** `emulated` runs in EmulatorJS; `builtin` is a page of our own. */
+export type GameType = "emulated" | "builtin";
+
+/** Which kind of jogo is on offer right now. */
+export type GameMode = "single" | "free";
+
+/**
+ * One control of a game, as the catalogue states it.
+ *
+ * `keys` are the real keyboard keys in effect (the EmulatorJS default keymap
+ * for the core), and `action` is what they do in pt-BR. Both come from the
+ * server so the key chips on the screen cannot drift from what the emulator
+ * actually listens for.
+ */
+export interface GameControl {
+	keys: string[];
+	action: string;
+}
+
+/**
+ * One game as the kid's screens carry it.
+ *
+ * `about` is one pt-BR line and `controls` is short by construction: this is
+ * what a screen prints, not the catalogue's whole entry.
+ */
+export interface Game {
+	id: string;
+	title: string;
+	type: GameType;
+	system: GameSystem;
+	year: number;
+	maker: string;
+	about: string;
+	controls: GameControl[];
+}
+
+/**
+ * `GET /api/games`: the mode and the games that are visible in it.
+ *
+ * Only visible games are here, which is why the screen never filters: in single
+ * mode the list is the active game or nothing at all, and in free mode it is
+ * every playable game.
+ */
+export interface GamesView {
+	mode: GameMode;
+	games: Game[];
+}
+
+/**
+ * Why a catalogue entry cannot be played, or `null` when it can.
+ *
+ * The two reasons are the two things that have to be on the laptop: the ROM
+ * file and the emulator core. They are separate because the fix is different --
+ * `just sala-emulador` for one, the ROM drive for the other.
+ */
+export type GameMissing = "rom" | "core";
+
+/** One catalogue entry as the teacher's screen carries it. */
+export interface AdminGame {
+	id: string;
+	title: string;
+	type: GameType;
+	system: GameSystem;
+	core: string;
+	year: number;
+	maker: string;
+	playable: boolean;
+	missing: GameMissing | null;
+}
+
+/**
+ * `GET <admin>/api/games`: the whole catalogue plus the two settings.
+ *
+ * `activeGame` is the id stored in the settings, whether or not it is playable:
+ * the teacher has to be able to see that the game they picked has lost its ROM.
+ */
+export interface AdminGames {
+	activeGame: string | null;
+	freeMode: boolean;
+	games: AdminGame[];
+}

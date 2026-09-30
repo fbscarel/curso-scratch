@@ -1,4 +1,4 @@
-"""Folhas (G9): the aula PDFs of the repo — the `ficha` and the `desafios`.
+"""Folhas: the aula PDFs of the repo — the `ficha` and the `desafios`.
 
 The PDFs live outside the data dir, in the checkout (`<repo>/aulas/pdf`, env
 `SALA_PDFS`), and only two of the files there are ever reachable: the ficha and

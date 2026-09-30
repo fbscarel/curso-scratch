@@ -7,7 +7,12 @@ the file it is -- except the build's own dotfiles, which are refused under
 `/assets/` as well. Any other GET without a file extension and outside the APIs
 is the SPA: the public routes, and the whole admin tree, where
 `<meta name="sala-admin-base">` is what tells the bundle to show the admin app
-(the admin path itself is never in the bundle).
+(the admin path itself is never in the bundle). Nothing under `/emulador/` is
+the shell: the emulator has pages of its own (`emulator_page.bp`).
+
+Every one of those documents carries the SPA's strict CSP (`SPA_CSP`), which is
+what keeps the bundle from reaching anything outside this laptop; `index.html` is
+one document served from several routes, so the header is set in one place.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from flask import Blueprint, Response, abort, current_app, send_from_directory
 from werkzeug.exceptions import NotFound
 
 from . import auth
+from .emulator_page import EMULADOR_PREFIX
 from .sheets import FOLHAS_PREFIX
 
 bp = Blueprint("spa", __name__)
@@ -31,6 +37,22 @@ MISSING_BUNDLE_MESSAGE = "Interface não compilada: rode just web-build"
 # Vite's asset names carry a content hash, so they can be cached forever.
 ASSET_MAX_AGE = 60 * 60 * 24 * 365
 HEAD_TAG = re.compile(r"<head[^>]*>", re.IGNORECASE)
+
+# The SPA's own policy, enforced on every route of this app: the bundle
+# and its font are same-origin (`default-src 'self'`), the emulator runs in an
+# iframe that is ours (`frame-src 'self'`, and the play page keeps its own,
+# looser policy), `data:`/`blob:` are the confetti canvas and the emulator's
+# in-memory files, and `'unsafe-inline'` styles are Radix measuring its popups.
+# There is no `'unsafe-eval'` here: nothing in the bundle needs it, and the
+# emulator that does is a document of its own.
+SPA_CSP = " ".join(
+    (
+        "default-src 'self';",
+        "style-src 'self' 'unsafe-inline';",
+        "img-src 'self' data: blob:;",
+        "frame-src 'self'",
+    )
+)
 
 
 def _dist_dir() -> Path:
@@ -65,6 +87,7 @@ def _index_response(*, admin: bool) -> Response:
         document = inject_admin_base(document, current_app.config["SALA_CONFIG"].admin_path)
     response = Response(document, mimetype="text/html")
     response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = SPA_CSP
     return response
 
 
@@ -101,6 +124,11 @@ def fallback(path: str) -> Response:
         raise auth.ApiError(404, "Não encontrei essa rota da API.")
     if url == admin_path or url.startswith(admin_path + "/"):
         return _index_response(admin=True)
+    if url == EMULADOR_PREFIX or url.startswith(EMULADOR_PREFIX + "/"):
+        # `/emulador/play`, `/emulador/play.js` and `/emulador/data/*` are
+        # `emulator_page.bp`; any other path under `/emulador/` is a typo, and
+        # the emulator's iframe must never be handed the SPA shell.
+        abort(404)
     if path == INDEX_FILENAME:
         # `index.html` is the index by name as well as by `/`: it must not be a
         # second path to the shell with send_file's weaker cache policy.

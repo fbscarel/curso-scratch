@@ -8,6 +8,11 @@ describe("parseRoute", () => {
 	it("maps the public screens", () => {
 		expect(parseRoute("/", BASE)).toEqual({ name: "home" });
 		expect(parseRoute("/quem-sou-eu", BASE)).toEqual({ name: "identity" });
+		expect(parseRoute("/jogo", BASE)).toEqual({ name: "games" });
+		expect(parseRoute("/jogos/enduro", BASE)).toEqual({
+			name: "game",
+			id: "enduro",
+		});
 	});
 
 	it("maps the admin screens under the admin base", () => {
@@ -18,10 +23,34 @@ describe("parseRoute", () => {
 			[`${BASE}/alunos`]: "admin-students",
 			[`${BASE}/aulas`]: "admin-lessons",
 			[`${BASE}/presenca`]: "admin-attendance",
+			[`${BASE}/jogos`]: "admin-games",
 		};
 		for (const [path, name] of Object.entries(cases)) {
 			expect(parseRoute(path, BASE).name).toBe(name);
 		}
+	});
+
+	it("only takes a catalogue id after /jogos/", () => {
+		// The id reaches the API and the iframe URL from the address bar, so a
+		// path that is not an id is a typo -- and one that must not become a
+		// request. Uppercase, traversal, an extra segment and a query all fail
+		// the same check the catalogue's own ids pass.
+		const paths = [
+			"/jogos",
+			"/jogos/",
+			"/jogos/Enduro",
+			"/jogos/../etc",
+			"/jogos/enduro/extra",
+			"/jogos/enduro%20",
+			"/jogos/a_b",
+		];
+		for (const path of paths) {
+			expect(parseRoute(path, BASE).name).toBe("notfound");
+		}
+		expect(parseRoute("/jogos/space-invaders", BASE)).toEqual({
+			name: "game",
+			id: "space-invaders",
+		});
 	});
 
 	it("serves no admin screen at all when the page carries no admin base", () => {
@@ -66,15 +95,23 @@ describe("parseRoute", () => {
 		for (const name of [
 			"home",
 			"identity",
+			"games",
 			"admin-login",
 			"admin-current",
 			"admin-students",
 			"admin-lessons",
 			"admin-attendance",
+			"admin-games",
 		] as const) {
 			const route = { name };
 			expect(parseRoute(hrefFor(route, BASE), BASE)).toEqual(route);
 		}
+	});
+
+	it("round-trips a game, id and all", () => {
+		const route = { name: "game", id: "space-invaders" } as const;
+		expect(hrefFor(route, BASE)).toBe("/jogos/space-invaders");
+		expect(parseRoute(hrefFor(route, BASE), BASE)).toEqual(route);
 	});
 
 	it("keeps the unknown path in the href, so the link goes where it says", () => {

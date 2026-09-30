@@ -20,13 +20,26 @@ export type Route =
 	| { name: "upload" }
 	| { name: "my-files" }
 	| { name: "sheets" }
+	| { name: "games" }
+	| { name: "game"; id: string }
 	| { name: "admin-login" }
 	| { name: "admin-current" }
 	| { name: "admin-students" }
 	| { name: "admin-lessons" }
 	| { name: "admin-attendance" }
 	| { name: "admin-uploads" }
+	| { name: "admin-games" }
 	| { name: "notfound"; path: string; admin: boolean };
+
+/**
+ * A catalogue id, and the only shape one can have.
+ *
+ * Checked here rather than only by the server, because the id comes from the URL
+ * bar: `/jogos/<id>` is a route, and a path that is not an id (`/jogos/..`,
+ * `/jogos/x/y`) is a typo that must land on the not-found screen instead of
+ * being turned into a request.
+ */
+const GAME_ID = /^[a-z0-9-]+$/;
 
 export function parseRoute(
 	pathname: string,
@@ -52,6 +65,8 @@ export function parseRoute(
 				return { name: "admin-attendance" };
 			case "entregas":
 				return { name: "admin-uploads" };
+			case "jogos":
+				return { name: "admin-games" };
 			default:
 				return { name: "notfound", path: pathname, admin: true };
 		}
@@ -69,7 +84,20 @@ export function parseRoute(
 				return { name: "my-files" };
 			case "folhas":
 				return { name: "sheets" };
+			case "jogo":
+				return { name: "games" };
 		}
+	}
+	// `/jogos/<id>` is the one two-segment public route; anything else with two
+	// segments is a path this application does not serve.
+	const [first, second] = parts;
+	if (
+		parts.length === 2 &&
+		first === "jogos" &&
+		second &&
+		GAME_ID.test(second)
+	) {
+		return { name: "game", id: second };
 	}
 	return { name: "notfound", path: pathname, admin: false };
 }
@@ -86,6 +114,10 @@ export function hrefFor(route: Route, base: string = readAdminBase()): string {
 			return "/meus-arquivos";
 		case "sheets":
 			return "/folhas";
+		case "games":
+			return "/jogo";
+		case "game":
+			return `/jogos/${route.id}`;
 		case "admin-login":
 			return `${base}/login`;
 		case "admin-current":
@@ -98,6 +130,8 @@ export function hrefFor(route: Route, base: string = readAdminBase()): string {
 			return `${base}/presenca`;
 		case "admin-uploads":
 			return `${base}/entregas`;
+		case "admin-games":
+			return `${base}/jogos`;
 		case "notfound":
 			return route.path;
 	}

@@ -42,6 +42,8 @@ EXPECTED_ADMIN_GUARDED = {
     ("GET", "/uploads/1/download"),
     ("PATCH", "/uploads/1"),
     ("GET", "/uploads/lesson/1.zip"),
+    ("GET", "/games"),
+    ("PUT", "/games/mode"),
 }
 
 # Every non-GET method of the whole app, public and admin alike; the admin ones
@@ -61,6 +63,7 @@ EXPECTED_NON_GET = {
     ("PUT", "/attendance/1"),
     ("POST", "/api/uploads"),
     ("PATCH", "/uploads/1"),
+    ("PUT", "/games/mode"),
 }
 
 
@@ -140,6 +143,8 @@ def test_every_response_refuses_to_be_sniffed(
         f"{admin_api}/session",
         f"{admin_api}/uploads",
         f"/api/uploads/{upload_id}/download",
+        "/emulador/play",
+        "/emulador/play.js",
     ):
         response = client.get(url)
         assert response.headers["X-Content-Type-Options"] == "nosniff", url

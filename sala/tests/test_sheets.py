@@ -1,4 +1,4 @@
-"""Folhas (G9): the sheet list, the PDF route and what the SPA fallback does with
+"""Folhas: the sheet list, the PDF route and what the SPA fallback does with
 everything else under `/folhas/`."""
 
 from __future__ import annotations

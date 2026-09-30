@@ -1,4 +1,4 @@
-"""Entrega storage (G6–G8): where an upload lands, how it is named and moved.
+"""Entrega storage: where an upload lands, how it is named and moved.
 
 Everything an "entrega" needs on disk lives here: the allowed types and the size
 limit, the sanitizing of a name a kid typed, the folder per aula and aluno

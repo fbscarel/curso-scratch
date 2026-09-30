@@ -1,4 +1,10 @@
-"""`python -m app.serve`: print the addresses for the board and serve with waitress."""
+"""`python -m app.serve`: print the addresses for the board and serve with waitress.
+
+The teacher can also name the game of the day: `just sala jogo=enduro` (or
+`just sala enduro` — the recipe passes whatever was typed through) sets the active
+game for single-game mode, and `just sala jogo=livre` turns free mode on. An
+unknown name stops the server before it starts, listing the ids it knows.
+"""
 
 from __future__ import annotations
 
@@ -14,13 +20,18 @@ from pathlib import Path
 
 from waitress import serve as waitress_serve
 
-from . import create_app
+from . import create_app, emulatorjs, games
 from .config import Config
+from .db import get_db
 
 DEFAULT_PORT = 8000
 THREADS = 16
 SYS_CLASS_NET = Path("/sys/class/net")
 SIOCGIFADDR = 0x8915
+
+# `just sala jogo=enduro` arrives as the single argument `jogo=enduro`; the
+# prefix is stripped here (and not in the recipe) so `just sala enduro` works too.
+GAME_ARGUMENT_PREFIX = "jogo="
 
 RFC1918_NETWORKS = (
     ipaddress.ip_network("10.0.0.0/8"),
@@ -102,10 +113,43 @@ def list_interfaces() -> list[Interface]:
     return interfaces
 
 
-def main() -> int:
+def parse_game_argument(argv: Sequence[str]) -> str | None:
+    """The game the teacher named on the command line, or None.
+
+    `just sala jogo=enduro` hands over `jogo=enduro`; `just sala enduro` hands
+    over `enduro`. Anything after the first argument is ignored.
+    """
+    if not argv:
+        return None
+    value = argv[0].strip()
+    if value.startswith(GAME_ARGUMENT_PREFIX):
+        value = value[len(GAME_ARGUMENT_PREFIX) :].strip()
+    return value or None
+
+
+def _choice_message(choice: str) -> str:
+    if choice == games.FREE_MODE_CHOICE:
+        return "Modo livre ligado: a turma escolhe qualquer jogo do catálogo."
+    jogo = games.by_id(choice)
+    title = jogo.title if jogo is not None else choice
+    return f"Jogo do dia: {title}."
+
+
+def main(argv: Sequence[str] | None = None) -> int:
     config = Config.load_optional()
     if config is None:
         print(MISSING_CONFIG_MESSAGE, file=sys.stderr)
+        return 1
+
+    try:
+        games.catalogue()
+    except (games.CatalogueError, emulatorjs.ManifestError) as error:
+        print(f"Erro no catálogo de jogos: {error}", file=sys.stderr)
+        return 1
+
+    choice = parse_game_argument(list(sys.argv[1:] if argv is None else argv))
+    if choice is not None and choice != games.FREE_MODE_CHOICE and games.by_id(choice) is None:
+        print(f"Erro: {games.unknown_game_message(choice)}", file=sys.stderr)
         return 1
 
     port = int(os.environ.get("SALA_PORTA", DEFAULT_PORT))
@@ -118,6 +162,11 @@ def main() -> int:
         print(NO_ADDRESS_MESSAGE)
 
     app = create_app(config)
+    if choice is not None:
+        with app.app_context():
+            games.choose(get_db(), choice)
+        print(_choice_message(choice))
+
     waitress_serve(app, host="0.0.0.0", port=port, threads=THREADS)
     return 0
 

@@ -15,10 +15,13 @@ import type { AdminSession, PublicSession } from "@/lib/types";
 import { useAsync } from "@/lib/useAsync";
 import { Attendance } from "@/screens/admin/Attendance";
 import { Current } from "@/screens/admin/Current";
+import { GamesAdmin } from "@/screens/admin/Games";
 import { Lessons } from "@/screens/admin/Lessons";
 import { AdminLogin } from "@/screens/admin/Login";
 import { Students } from "@/screens/admin/Students";
 import { Uploads } from "@/screens/admin/Uploads";
+import { GamePlay } from "@/screens/GamePlay";
+import { Games } from "@/screens/Games";
 import { Home } from "@/screens/Home";
 import { Identity } from "@/screens/Identity";
 import { MyFiles } from "@/screens/MyFiles";
@@ -93,6 +96,8 @@ function KidApp({ route }: { route: Route }) {
 				{route.name === "identity" && <Identity />}
 				{route.name === "notfound" && <NotFound />}
 				{route.name === "sheets" && <Sheets />}
+				{route.name === "games" && <Games />}
+				{route.name === "game" && <GamePlay id={route.id} />}
 				{route.name === "home" &&
 					(session.loading ? (
 						<KidLoading />
@@ -229,6 +234,8 @@ function AdminScreen({
 			);
 		case "admin-uploads":
 			return <Uploads currentNumber={session.currentLesson?.number ?? null} />;
+		case "admin-games":
+			return <GamesAdmin />;
 		case "notfound":
 			return (
 				<NotFound

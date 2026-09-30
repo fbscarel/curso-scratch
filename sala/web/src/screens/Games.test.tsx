@@ -1,0 +1,144 @@
+import { act, render, screen, waitFor } from "@testing-library/react";
+import type { Mock } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { forgetCsrf, rememberCsrf } from "@/lib/api";
+import type { Game, GamesView } from "@/lib/types";
+import { Games } from "@/screens/Games";
+
+const ENDURO: Game = {
+	id: "enduro",
+	title: "Enduro",
+	type: "emulated",
+	system: "atari2600",
+	year: 1983,
+	maker: "Activision",
+	about: "Corrida de resistência: ultrapasse os carros dia e noite.",
+	controls: [{ keys: ["←", "→"], action: "virar" }],
+};
+
+const FROGGER: Game = {
+	id: "frogger",
+	title: "Frogger",
+	type: "emulated",
+	system: "arcade",
+	year: 1981,
+	maker: "Konami",
+	about: "Atravesse a rua e o rio para levar o sapo até a casa.",
+	controls: [
+		{ keys: ["↑", "↓", "←", "→"], action: "pular" },
+		{ keys: ["v"], action: "ficha (moeda)" },
+	],
+};
+
+function jsonResponse(status: number, body: unknown): Response {
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
+/**
+ * `/jogo` is two screens, and which one it is comes from the server: the mode
+ * and the visible games are one answer, so the screen shows what it is given
+ * rather than deciding for itself what a kid may play.
+ */
+describe("the /jogo screen", () => {
+	let fetchMock: Mock;
+
+	beforeEach(() => {
+		fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		rememberCsrf("tok-1");
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		forgetCsrf();
+	});
+
+	function serve(view: GamesView): void {
+		fetchMock.mockImplementation((path: string) => {
+			if (path === "/api/games") return jsonResponse(200, view);
+			const one = /^\/api\/games\/(.+)$/.exec(path);
+			if (one) {
+				const found = view.games.find((game) => game.id === one[1]);
+				return found
+					? jsonResponse(200, found)
+					: jsonResponse(404, { error: "Este jogo não está liberado." });
+			}
+			return jsonResponse(404, { error: `pedido inesperado: ${path}` });
+		});
+	}
+
+	it("lists the visible games, with the console and the year", async () => {
+		serve({ mode: "free", games: [ENDURO, FROGGER] });
+		render(<Games />);
+
+		expect(await screen.findByText("Enduro")).toBeTruthy();
+		expect(screen.getByText("Frogger")).toBeTruthy();
+		// The pt-BR names of the consoles, not the catalogue's code names.
+		expect(screen.getByText("Atari 2600")).toBeTruthy();
+		expect(screen.getByText("Fliperama")).toBeTruthy();
+		expect(screen.getByText("1983")).toBeTruthy();
+		// A grid, not a game: nothing is embedded until one is chosen.
+		expect(document.querySelector("iframe")).toBeNull();
+	});
+
+	it("opens the active game's page in single mode", async () => {
+		serve({ mode: "single", games: [ENDURO] });
+		render(<Games />);
+
+		expect(await screen.findByRole("heading", { name: "Enduro" })).toBeTruthy();
+		expect(screen.getByText("Sobre o jogo")).toBeTruthy();
+		expect(
+			screen.getByText(
+				"Corrida de resistência: ultrapasse os carros dia e noite.",
+			),
+		).toBeTruthy();
+		await waitFor(() =>
+			expect(document.querySelector("iframe")?.getAttribute("src")).toBe(
+				"/emulador/play?game=enduro",
+			),
+		);
+	});
+
+	it("says so, kindly, when no game is visible at all", async () => {
+		serve({ mode: "single", games: [] });
+		render(<Games />);
+
+		expect(await screen.findByText(/Nenhum jogo liberado agora/)).toBeTruthy();
+		expect(document.querySelector("iframe")).toBeNull();
+	});
+
+	it("revalidates when the kid comes back, and falls back to the empty state", async () => {
+		serve({ mode: "single", games: [ENDURO] });
+		render(<Games />);
+		expect(await screen.findByRole("heading", { name: "Enduro" })).toBeTruthy();
+
+		// The teacher turned the class's game off while the kid was in another
+		// tab: nothing else would ever tell this screen.
+		serve({ mode: "single", games: [] });
+		await act(async () => {
+			window.dispatchEvent(new Event("focus"));
+		});
+
+		expect(await screen.findByText(/Nenhum jogo liberado agora/)).toBeTruthy();
+		expect(document.querySelector("iframe")).toBeNull();
+	});
+
+	it("leaves the running game alone when the answer did not change", async () => {
+		serve({ mode: "single", games: [ENDURO] });
+		render(<Games />);
+		expect(await screen.findByRole("heading", { name: "Enduro" })).toBeTruthy();
+		const frame = document.querySelector("iframe");
+
+		await act(async () => {
+			window.dispatchEvent(new Event("focus"));
+		});
+
+		// Same game, same frame: reloading here would restart the emulator the
+		// kid is playing.
+		expect(document.querySelector("iframe")).toBe(frame);
+		expect(screen.getByRole("heading", { name: "Enduro" })).toBeTruthy();
+	});
+});

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from flask import Flask, Response
 
-from . import api_admin, api_public, auth, db, sheets, spa, uploads
+from . import api_admin, api_public, auth, db, emulator_page, sheets, spa, uploads
 
 if TYPE_CHECKING:  # kept out of the import at runtime so `python -m app.config` is clean
     from .config import Config
@@ -66,5 +66,6 @@ def create_app(config: Config, *, dist_dir: Path | str | None = None) -> Flask:
     app.register_blueprint(api_public.bp)
     app.register_blueprint(api_admin.bp, url_prefix=f"{config.admin_path}/api")
     app.register_blueprint(sheets.bp)
+    app.register_blueprint(emulator_page.bp)
     app.register_blueprint(spa.bp)
     return app
