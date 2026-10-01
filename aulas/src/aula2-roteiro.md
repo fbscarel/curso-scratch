@@ -128,7 +128,7 @@ adicione (10) a x
 **Pergunte:** *"E para a esquerda? Adicionar quanto ao x?"* (**-10**!) · *"E para cima?"* (adicionar 10 ao **y**) · *"E para baixo?"* (adicionar **-10** ao y)
 
 <div class="teacher" markdown="1">
-Esta é a **base do jogo de labirinto** da próxima aula. Quem terminar, deixe o gato andando com as 4 setas — não é preciso salvar, vamos refazer juntos.
+Andar com as setas volta nos **próximos jogos**. Quem terminar, deixe o gato andando com as 4 setas e **salve** (Arquivo → Salvar como...): no fim da aula vamos entregar o trabalho na **Sala**.
 </div>
 
 **Desafios:**
@@ -190,7 +190,7 @@ levante a caneta
 
 - Duas ou três crianças mostram o gato andando pelas setas no projetor (ou "galeria").
 - **Perguntas finais:** *"Onde o gato mora quando começa?"* (0, 0) · *"x é para o lado ou para cima?"* · *"Andar para a esquerda é x positivo ou negativo?"*
-- **Próxima aula:** *"Vamos criar o nosso **primeiro jogo**: um labirinto!"*
+- **Próxima aula:** *"Vamos criar o nosso **primeiro jogo**: pegar as frutas que caem do céu!"*
 
 ## Gabarito da Ficha 2 {style="break-before: page"}
 

@@ -170,4 +170,4 @@ Adicione o ator **Star** e faça a estrela pular para uma **posição aleatória
 - **negativo** = para a **esquerda** ou para **baixo**
 - o gato começa no **(0, 0)**, o centro do palco
 
-**Próxima aula:** o nosso **primeiro jogo** — um labirinto! 🏁
+**Próxima aula:** o nosso **primeiro jogo** — pegar as frutas que caem do céu! 🍎
