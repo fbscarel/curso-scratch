@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""Build the .sb3 projects for lessons 1 and 2 of the Scratch course
-(Santana, Bahia, Brazil).
+"""Build the .sb3 projects for the Scratch course (Santana, Bahia, Brazil).
 
 Reproducible: downloads the official Scratch assets into tools/assets-cache/,
 checks that each file's md5 equals the md5 in the asset's own file name (a
-Scratch 3 requirement) and writes projetos/*.sb3.
+Scratch 3 requirement) and writes the .sb3 files.
 
 The md5 names of the library assets come from the official scratch-gui JSONs
 (src/lib/libraries/{backdrops,sprites,costumes,sounds}.json) and from the asset
 API (https://cdn.assets.scratch.mit.edu/internalapi/asset/<md5ext>/get/).
+Some costumes (the pong court, paddles and ball) are drawn by this script
+instead; they follow the same rule, the asset id is the md5 of the bytes.
+
+projetos/ holds the starters the kids open in class; demos/ holds the finished
+games (not copied into the student image by distro, which only ships
+projetos/*.sb3).
 
 Usage:
-    python3 tools/build_sb3.py           # build both .sb3 projects
+    python3 tools/build_sb3.py           # build every .sb3 project
     python3 tools/build_sb3.py --check   # validate the generated .sb3 files
 """
 
@@ -29,7 +34,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "tools" / "assets-cache"
-OUT = ROOT / "projetos"
 CDN = "https://cdn.assets.scratch.mit.edu/internalapi/asset/{}/get/"
 
 # ---------------------------------------------------------------------------
@@ -106,6 +110,16 @@ def i_plug(block_id: str, shadow: list) -> list:
     return [INPUT_DIFF_BLOCK_SHADOW, block_id, shadow]
 
 
+def i_plug_menu(block_id: str, menu_id: str) -> list:
+    """Reporter plugged into an input whose shadow is a menu block.
+
+    Scratch stores the hidden menu shadow as a bare block id, not as the
+    `[1, id]` descriptor used when the menu itself is the input, so the
+    caller passes the shadow block id itself (`Target.menu(...)[1]`).
+    """
+    return [INPUT_DIFF_BLOCK_SHADOW, block_id, menu_id]
+
+
 # ---------------------------------------------------------------------------
 # Assets
 # ---------------------------------------------------------------------------
@@ -156,11 +170,26 @@ GIFT = [
 APPLE = [costume("apple", "3826a4091a33e4d26f87a2fac7cf796b.svg", 31, 31)]
 BANANAS = [costume("bananas", "e5d3d3eb61797f5999732a8f5efead24.svg", 39, 38)]
 ORANGE = [costume("orange", "d0a55aae1decb57152b454c9a5226757.svg", 19, 18)]
+WATERMELON = [costume("watermelon-a", "21d1340478e32a942914a7afd12b9f1a.svg",
+                      40.13434982299805, 27.860475540161133)]
+STRAWBERRY = [costume("strawberry-a", "2fa57942dc7ded7eddc4d41554768d67.svg", 31, 47)]
 BOWL = [costume("bowl-a", "d147f16e3e2583719c073ac5b55fe3ca.svg", 30, 15)]
 STAR = [costume("star", "551629f2a64c1f3703e57aaa133effa6.svg", 22, 23)]
 
 BACKDROP_BLUE_SKY = costume("Blue Sky", "e7c147730f19d284bcd7b3f00af19bb6.svg", 240, 180)
 BACKDROP_XY_GRID = costume("Xy-grid", "9838d02002d05f88dc54d96494fbc202.png", 480, 360, bitmap_resolution=2)
+
+
+def local_costume(project, name: str, svg: str, rcx, rcy) -> dict:
+    """A costume drawn by this script (pong court, paddles, ball).
+
+    The asset id is the md5 of the bytes, exactly like a library asset, so the
+    generated .sb3 stays valid and deterministic.
+    """
+    data = svg.encode("utf-8")
+    md5ext = f"{hashlib.md5(data).hexdigest()}.svg"
+    project.generated[md5ext] = data
+    return costume(name, md5ext, rcx, rcy)
 
 
 def fetch_asset(md5ext: str) -> bytes:
@@ -504,6 +533,7 @@ class Project:
         self.stage = Target("Stage", is_stage=True)
         self.targets = [self.stage]
         self.monitors: list = []
+        self.generated: dict[str, bytes] = {}
 
     def sprite(self, name: str, costumes=None, sounds=None, **kwargs) -> Target:
         kwargs.setdefault("layer_order", len(self.targets))
@@ -553,7 +583,11 @@ class Project:
         wanted: dict[str, bytes] = {}
         for target in self.targets:
             for item in target.costumes + target.sounds:
-                wanted[item["md5ext"]] = fetch_asset(item["md5ext"])
+                md5ext = item["md5ext"]
+                if md5ext in self.generated:
+                    wanted[md5ext] = self.generated[md5ext]
+                else:
+                    wanted[md5ext] = fetch_asset(md5ext)
         return wanted
 
 
@@ -932,6 +966,204 @@ def build_caca_as_coordenadas() -> Project:
 
 
 # ---------------------------------------------------------------------------
+# Project 3 - Lesson 3: catch the fruit (starter and finished game)
+# ---------------------------------------------------------------------------
+
+# The widest fruit costume (watermelon-a) is 80.27 px wide at size 100, so the
+# sprite is set to 99 to keep every costume within 80 stage px.
+FRUTA_SIZE = 99
+
+
+def _pega_frutas_scene():
+    """Stage, bowl and fruit shared by the starter and the finished game."""
+    project = Project()
+    project.stage.costumes = [BACKDROP_BLUE_SKY]
+
+    tigela = project.sprite("Tigela", costumes=BOWL, sounds=[POP], x=0, y=-150, size=150)
+    fruta = project.sprite("Fruta", costumes=APPLE + BANANAS + ORANGE + WATERMELON + STRAWBERRY,
+                           sounds=[POP], x=0, y=120, size=FRUTA_SIZE)
+    return project, tigela, fruta
+
+
+def build_pega_frutas() -> Project:
+    return _pega_frutas_scene()[0]
+
+
+def _respawn(fruta) -> list:
+    """`go to a random x at the top and pick a random costume`."""
+    return [
+        fruta.go_to(fruta.op("operator_random", FROM=i_num(-200), TO=i_num(200)), 180),
+        fruta.add("looks_switchcostumeto",
+                  {"COSTUME": i_plug_menu(
+                      fruta.op("operator_random", FROM=i_num(1), TO=i_num(5)),
+                      fruta.menu("looks_costume", "COSTUME", "apple")[1])}),
+    ]
+
+
+def build_pega_frutas_pronto() -> Project:
+    project, tigela, fruta = _pega_frutas_scene()
+
+    pontos = project.global_var("pontos", 0)
+    project.monitor(pontos, x=5, y=5)
+
+    # The bowl follows the mouse along the bottom of the stage.
+    tigela.script(40, 40,
+        tigela.hat("event_whenflagclicked"),
+        tigela.forever(
+            tigela.go_to(tigela.plug_num(tigela.op("sensing_mousex")), -150),
+        ),
+    )
+
+    # The fruit falls, respawns at the top and scores when it touches the bowl.
+    fruta.script(40, 40,
+        fruta.hat("event_whenflagclicked"),
+        fruta.set_var(pontos, fruta.text(0)),
+        *_respawn(fruta),
+        fruta.forever(
+            fruta.add("motion_changeyby", {"DY": i_num(-5)}),
+            fruta.if_(fruta.op("operator_lt",
+                               OPERAND1=fruta.plug_num(fruta.op("motion_yposition")),
+                               OPERAND2=i_num(-170)),
+                      *_respawn(fruta)),
+            fruta.if_(fruta.touching("Tigela"),
+                      fruta.change_var(pontos, i_num(1)),
+                      *_respawn(fruta)),
+        ),
+    )
+    return project
+
+
+# ---------------------------------------------------------------------------
+# Projects 4 and 5 - Pong (court, paddles and ball drawn by the script)
+# ---------------------------------------------------------------------------
+
+COURT_W = 480
+COURT_H = 360
+NET_W = 4
+DASH = 12
+GAP = 12
+
+
+def svg_court() -> str:
+    """480x360 black court with a dashed white net at x = 0."""
+    dashes = "".join(
+        f'<rect x="{COURT_W // 2 - NET_W // 2}" y="{y}" width="{NET_W}" height="{DASH}"/>'
+        for y in range(0, COURT_H, DASH + GAP)
+    )
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{COURT_W}" height="{COURT_H}" '
+        f'viewBox="0 0 {COURT_W} {COURT_H}">'
+        f'<rect width="{COURT_W}" height="{COURT_H}" fill="#000000"/>'
+        f'<g fill="#ffffff">{dashes}</g></svg>'
+    )
+
+
+def svg_rect(width: int, height: int) -> str:
+    """A solid white rectangle, used for the paddles and the ball."""
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}">'
+        f'<rect width="{width}" height="{height}" fill="#ffffff"/></svg>'
+    )
+
+
+def _pong_scene():
+    project = Project()
+    project.stage.costumes = [local_costume(project, "Quadra", svg_court(), COURT_W // 2, COURT_H // 2)]
+    raquete = local_costume(project, "Raquete", svg_rect(10, 60), 5, 30)
+    bola_costume = local_costume(project, "Bola", svg_rect(12, 12), 6, 6)
+
+    raquete1 = project.sprite("Raquete1", costumes=[raquete], x=-200, y=0)
+    raquete2 = project.sprite("Raquete2", costumes=[raquete], x=200, y=0)
+    bola = project.sprite("Bola", costumes=[bola_costume], sounds=[POP], x=0, y=0)
+    return project, raquete1, raquete2, bola
+
+
+def build_pong() -> Project:
+    return _pong_scene()[0]
+
+
+def _key(target, key: str) -> str:
+    return target.op("sensing_keypressed",
+                     KEY_OPTION=target.menu("sensing_keyoptions", "KEY_OPTION", key))
+
+
+def _neg(target, variable) -> list:
+    """`(0 - variable)`, used to flip a velocity."""
+    return target.plug_num(target.op("operator_subtract",
+                                     NUM1=i_num(0),
+                                     NUM2=target.plug_num(target.rep_var(variable))))
+
+
+def _paddle(target, x: int, up_key: str, down_key: str) -> None:
+    target.script(40, 40,
+        target.hat("event_whenflagclicked"),
+        target.go_to(x, 0),
+        target.forever(
+            target.if_(_key(target, up_key),
+                       target.add("motion_changeyby", {"DY": i_num(8)})),
+            target.if_(_key(target, down_key),
+                       target.add("motion_changeyby", {"DY": i_num(-8)})),
+        ),
+    )
+
+
+def build_pong_inicio() -> Project:
+    project, raquete1, raquete2, bola = _pong_scene()
+
+    vx = project.global_var("vx", 0)
+    vy = project.global_var("vy", 0)
+    project.monitor(vx, x=5, y=5)
+    project.monitor(vy, x=5, y=40)
+
+    _paddle(raquete1, -200, "w", "s")
+    _paddle(raquete2, 200, "up arrow", "down arrow")
+
+    bola.script(40, 40,
+        bola.hat("event_whenflagclicked"),
+        bola.go_to(0, 0),
+        bola.set_var(vx, bola.text(5)),
+        bola.set_var(vy, bola.plug_num(bola.op("operator_random", FROM=i_num(2), TO=i_num(4)))),
+        bola.forever(
+            bola.add("motion_changexby", {"DX": bola.plug_num(bola.rep_var(vx))}),
+            bola.add("motion_changeyby", {"DY": bola.plug_num(bola.rep_var(vy))}),
+            # bounce off the top and bottom walls
+            bola.if_(bola.op("operator_gt",
+                             OPERAND1=bola.plug_num(bola.op("motion_yposition")),
+                             OPERAND2=i_num(174)),
+                     bola.set_var(vy, _neg(bola, vy))),
+            bola.if_(bola.op("operator_lt",
+                             OPERAND1=bola.plug_num(bola.op("motion_yposition")),
+                             OPERAND2=i_num(-174)),
+                     bola.set_var(vy, _neg(bola, vy))),
+            # bounce off the left and right walls
+            bola.if_(bola.op("operator_gt",
+                             OPERAND1=bola.plug_num(bola.op("motion_xposition")),
+                             OPERAND2=i_num(234)),
+                     bola.set_var(vx, _neg(bola, vx))),
+            bola.if_(bola.op("operator_lt",
+                             OPERAND1=bola.plug_num(bola.op("motion_xposition")),
+                             OPERAND2=i_num(-234)),
+                     bola.set_var(vx, _neg(bola, vx))),
+            # bounce off a paddle, only while the ball is heading towards it
+            bola.if_(bola.op("operator_and",
+                             OPERAND1=i_block(bola.touching("Raquete1")),
+                             OPERAND2=i_block(bola.op("operator_lt",
+                                                      OPERAND1=bola.plug_num(bola.rep_var(vx)),
+                                                      OPERAND2=i_num(0)))),
+                     bola.set_var(vx, _neg(bola, vx))),
+            bola.if_(bola.op("operator_and",
+                             OPERAND1=i_block(bola.touching("Raquete2")),
+                             OPERAND2=i_block(bola.op("operator_gt",
+                                                      OPERAND1=bola.plug_num(bola.rep_var(vx)),
+                                                      OPERAND2=i_num(0)))),
+                     bola.set_var(vx, _neg(bola, vx))),
+        ),
+    )
+    return project
+
+
+# ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
 
@@ -1058,8 +1290,10 @@ def check_sb3(path: Path) -> list[str]:
                     problems.append(f"{target['name']}/{block_id}: parent {parent} does not exist")
                 else:
                     up = blocks[parent]
+                    # a plugged reporter is referenced by desc[1], a hidden menu
+                    # shadow by desc[2] (INPUT_DIFF_BLOCK_SHADOW)
                     linked = up["next"] == block_id or any(
-                        isinstance(desc, list) and len(desc) > 1 and desc[1] == block_id
+                        isinstance(desc, list) and any(part == block_id for part in desc[1:])
                         for desc in up["inputs"].values())
                     if not linked:
                         problems.append(f"{target['name']}/{block_id}: parent {parent} does not point back")
@@ -1080,6 +1314,29 @@ def check_sb3(path: Path) -> list[str]:
                         problems.append(f"{target['name']}/{block_id}.{input_name}: block {part} does not exist")
                 if desc[0] not in (1, 2, 3):
                     problems.append(f"{target['name']}/{block_id}.{input_name}: invalid kind {desc[0]}")
+                # the third slot of INPUT_DIFF_BLOCK_SHADOW names the hidden menu
+                # shadow: it must be a real shadow, owned by the block that holds
+                # the input and not left loose on the workspace
+                if len(desc) >= 3 and isinstance(desc[2], str):
+                    shadow_id = desc[2]
+                    shadow = blocks.get(shadow_id)
+                    if shadow is None:
+                        problems.append(
+                            f"{target['name']}/{block_id}.{input_name}: shadow block {shadow_id} does not exist")
+                    else:
+                        if not shadow.get("shadow"):
+                            problems.append(
+                                f"{target['name']}/{block_id}.{input_name}: block {shadow_id} is not a shadow")
+                        # input blocks are serialized without a parent link here, so
+                        # an absent parent is accepted; a wrong one is a problem
+                        shadow_parent = shadow.get("parent")
+                        if shadow_parent is not None and shadow_parent != block_id:
+                            problems.append(
+                                f"{target['name']}/{block_id}.{input_name}: shadow {shadow_id} parent is "
+                                f"{shadow_parent}, not {block_id}")
+                        if shadow.get("topLevel"):
+                            problems.append(
+                                f"{target['name']}/{block_id}.{input_name}: shadow {shadow_id} is topLevel")
             fields = block["fields"]
             for field_name, field_value in fields.items():
                 if field_name == "VARIABLE":
@@ -1157,22 +1414,25 @@ def main() -> int:
                         help="validate the .sb3 files on disk instead of building them")
     args = parser.parse_args()
 
-    OUT.mkdir(parents=True, exist_ok=True)
     builders = {
-        "Aula1-TreinoDoMouse.sb3": build_treino_do_mouse,
-        "Aula2-CacaAsCoordenadas.sb3": build_caca_as_coordenadas,
+        "projetos/Aula1-TreinoDoMouse.sb3": build_treino_do_mouse,
+        "projetos/Aula2-CacaAsCoordenadas.sb3": build_caca_as_coordenadas,
+        "projetos/Aula3-PegaFrutas.sb3": build_pega_frutas,
+        "demos/Aula3-PegaFrutas-pronto.sb3": build_pega_frutas_pronto,
+        "projetos/Aula4-Pong.sb3": build_pong,
+        "projetos/Aula5-PongInicio.sb3": build_pong_inicio,
     }
 
     if not args.check:
         for filename, builder in builders.items():
             project = builder()
-            path = OUT / filename
+            path = ROOT / filename
             write_sb3(path, project.to_dict(), project.assets())
             print(f"wrote {path.relative_to(ROOT)}")
 
     failed = False
     for filename in builders:
-        path = OUT / filename
+        path = ROOT / filename
         problems = check_sb3(path)
         used = opcodes_used(path)
         print(f"\n{path.relative_to(ROOT)}: {len(used)} opcodes, {len(problems)} problem(s)")
