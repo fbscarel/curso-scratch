@@ -189,9 +189,9 @@ teclas fazem naquele jogo.
 Com um bloco `score`, a página do jogo sabe ler a pontuação dentro do emulador e manda ela sozinha
 para o placar, sem passar pela sua confirmação. Sem ele, o jogo é jogado do mesmo jeito, mas a
 pontuação que o aluno anotar é que chega ao placar — e essa espera a sua confirmação no painel.
-Nove jogos se pontuam sozinhos: **Pong** (a nossa página) e, no emulador, **Enduro**, **Space
-Invaders**, **River Raid**, **Pitfall!**, **Frogger**, **Galaga**, **Ms. Pac-Man** e **Donkey
-Kong**. Super Mario Bros., Super Mario World, Sonic e Kaboom! ficam com o formulário.
+Dez jogos se pontuam sozinhos: **Pong** (a nossa página) e, no emulador, **Enduro**, **Space
+Invaders**, **River Raid**, **Pitfall!**, **Frogger**, **Galaga**, **Ms. Pac-Man**, **Donkey
+Kong** e **Kaboom!**. Super Mario Bros., Super Mario World e Sonic ficam com o formulário.
 
 ```yaml
 # Enduro: o odômetro de 6 dígitos fica little endian no estado do emulador

@@ -209,6 +209,14 @@ def test_the_tracked_games_that_score_by_themselves_read_the_right_bytes():
             # at $6001, which is zero for a whole one-credit game.
             "inGame": {"offset": 0x018F, "is": 0x01},
         },
+        "kaboom": {
+            "bcd": [0x9F, 0xA0, 0xA1],
+            "multiplier": 1,
+            # $A1 (state 0x9D) is the bucket counter: 0 on the attract screen,
+            # after GAME OVER and while it waits for RESET, and 3/2/1 for the
+            # whole match, bucket-loss explosion included.
+            "inGame": {"offset": 0x9D, "not": 0x00},
+        },
     }
 
 
@@ -224,6 +232,7 @@ def test_the_games_without_a_score_block_are_the_ones_we_cannot_read():
         "galaga",
         "ms-pac-man",
         "donkey-kong",
+        "kaboom",
     }
 
 
@@ -780,11 +789,11 @@ def test_only_the_games_that_can_report_their_score_do_it_themselves():
     # when the catalogue says where its score lives in the savestate.
     assert games.allows_auto_score(games.by_id("pong")) is True
     for game_id in ("enduro", "space-invaders", "river-raid", "pitfall", "frogger",
-                    "galaga", "ms-pac-man", "donkey-kong"):
+                    "galaga", "ms-pac-man", "donkey-kong", "kaboom"):
         assert games.allows_auto_score(games.by_id(game_id)) is True
-    # The games the catalogue cannot read a score from (Kaboom!'s RAM study is
-    # still to come): only the form the kid fills in.
-    for game_id in ("kaboom", "super-mario-bros", "super-mario-world", "sonic"):
+    # The games the catalogue cannot read a score from: only the form the kid
+    # fills in.
+    for game_id in ("super-mario-bros", "super-mario-world", "sonic"):
         assert games.allows_auto_score(games.by_id(game_id)) is False
 
 

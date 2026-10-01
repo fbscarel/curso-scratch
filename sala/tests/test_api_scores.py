@@ -106,6 +106,7 @@ def test_a_score_the_game_cannot_report_is_refused(
         "galaga",
         "ms-pac-man",
         "donkey-kong",
+        "kaboom",
     ],
 )
 def test_a_score_an_emulated_game_reported_is_approved_at_once(
