@@ -67,6 +67,18 @@ pelo nome `sala.local`, `avahi` e `nss-mdns`. O que a sala guarda fica em `sala/
   - lucide (ícones) e canvas-confetti — ISC — dependências do site da sala.
   - Fonte Nunito — [SIL OFL 1.1](https://openfontlicense.org/) — `@fontsource-variable/nunito`,
     dependência do site da sala.
+  - Imagens dos slides de história (`aulas/src/img/historia/`), da Wikipédia e do Wikimedia Commons;
+    não estão sob a licença CC BY-SA 4.0 dos materiais:
+    - `atari-2600-paddle.jpg` — Evan-Amos, domínio público —
+      [Commons](https://commons.wikimedia.org/wiki/File:Atari-2600-Paddle-Controller-FR.jpg).
+    - `kaboom-caixa.jpg` — capa do Kaboom! © Activision, uso ilustrativo (como na Wikipédia) —
+      [Wikipédia](https://en.wikipedia.org/wiki/File:Kaboomcover.jpg).
+    - `tennis-for-two.jpg` — Brookhaven National Laboratory, domínio público —
+      [Commons](https://commons.wikimedia.org/wiki/File:Tennis_For_Two_on_a_DuMont_Lab_Oscilloscope_Type_304-A.jpg).
+    - `spacewar-pdp1.jpg` — Joi Ito, [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) —
+      [Commons](https://commons.wikimedia.org/wiki/File:Spacewar!-PDP-1-20070512.jpg).
+    - `pong-fliperama.jpg` — Chris Rand, [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) —
+      [Commons](https://commons.wikimedia.org/wiki/File:Signed_Pong_Cabinet.jpg).
 
 Scratch é um projeto da Scratch Foundation, em colaboração com o Lifelong Kindergarten Group do MIT
 Media Lab. Curso independente, sem afiliação ao MIT ou à Scratch Foundation.

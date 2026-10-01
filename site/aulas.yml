@@ -19,3 +19,23 @@ aulas:
       - "Mover o gato com as **setas do teclado** usando o bloco `adicione 10 a x`."
     projeto: Aula2-CacaAsCoordenadas
     projeto_descricao: "Caça às coordenadas: descubra o x e o y da estrela e ganhe pontos."
+  - numero: 3
+    titulo: "Pega-frutas: o nosso primeiro jogo"
+    data: 2026-10-06
+    resumo:
+      - "Jogamos o **Kaboom!** (Activision, 1981) na Sala e conhecemos um pouco da história dele."
+      - "A tigela **segue o mouse** para os lados: o x dela é o **x do mouse**, e o y fica sempre em **-150**."
+      - "Para a fruta **cair**, o y **diminui**: `adicione -5 a y`. Ela nasce no alto, num x **sorteado** com o bloco `número aleatório`."
+      - "Uma **variável** é uma **caixa com nome** que guarda um número: a nossa se chama **pontos**."
+    projeto: Aula3-PegaFrutas
+    projeto_descricao: "Pega-frutas: o fundo, a tigela e a fruta (com 5 fantasias) prontos para você programar."
+  - numero: 4
+    titulo: "Pong: a bola e as raquetes"
+    data: 2026-10-09
+    resumo:
+      - "Jogamos o **Pong** na Sala e vimos os primeiros videogames: *Tennis for Two* (1958), *Spacewar!* (1962) e o Pong (1972)."
+      - "A bola anda sozinha com **duas variáveis**: **vx** (para os lados) e **vy** (para cima e para baixo)."
+      - "Bateu numa parede? A velocidade **troca de sinal**: `mude vy para 0 - vy`."
+      - "Com `sempre` + `se tecla w pressionada? então` a raquete anda **sem engasgar**, e dá para jogar **em dupla** no mesmo teclado."
+    projeto: Aula4-Pong
+    projeto_descricao: "Pong: a quadra com a rede, as duas raquetes e a bola, prontas para você programar."

@@ -1,39 +1,71 @@
 {
   "pdfs": {
     "aula1-desafios.pdf": {
-      "shared": "278f279fc0bfd02e4a8d6b807fe962913a99244fa31214ff62ec4efaf81013f7",
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
       "source": "4bcef2640931356a6858a3cb5495db8e94eba4e79a13c02f081136446cb9045c"
     },
     "aula1-ficha.pdf": {
-      "shared": "278f279fc0bfd02e4a8d6b807fe962913a99244fa31214ff62ec4efaf81013f7",
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
       "source": "6775ad3b555535379ffe9af802a3a23fd4a9c996087fa7716192c29e40dbb646"
     },
     "aula1-roteiro.pdf": {
-      "shared": "278f279fc0bfd02e4a8d6b807fe962913a99244fa31214ff62ec4efaf81013f7",
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
       "source": "edab0ff20093c48c7f928aecfa7fc582d7991da7d07a7d54e55cbdb266d7c3be"
     },
     "aula1-slides.pdf": {
-      "shared": "278f279fc0bfd02e4a8d6b807fe962913a99244fa31214ff62ec4efaf81013f7",
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
       "source": "27b49fe8f86f4bc0323e8707e791178c1ddd3f5620449de53c5b6a183492e19b"
     },
     "aula2-desafios.pdf": {
-      "shared": "278f279fc0bfd02e4a8d6b807fe962913a99244fa31214ff62ec4efaf81013f7",
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
       "source": "f8e9bd068ce22b6dc957498915d4a36f1d8a898479d2fd6222f9fe601b7be24c"
     },
     "aula2-ficha.pdf": {
-      "shared": "278f279fc0bfd02e4a8d6b807fe962913a99244fa31214ff62ec4efaf81013f7",
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
       "source": "14583f79ba99397981b74cfb224c5f4bc4c4a5879002d0a7dbbae78aea7173cf"
     },
     "aula2-roteiro.pdf": {
-      "shared": "278f279fc0bfd02e4a8d6b807fe962913a99244fa31214ff62ec4efaf81013f7",
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
       "source": "c6a93b8bb432108cf53b58d61880f70740f75caf622464541baf22b2e5133d4e"
     },
     "aula2-slides.pdf": {
-      "shared": "278f279fc0bfd02e4a8d6b807fe962913a99244fa31214ff62ec4efaf81013f7",
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
       "source": "f354afa1daeb8164463dcb038a779be65272f0602469751d3f8acb441f07119b"
     },
+    "aula3-desafios.pdf": {
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
+      "source": "add32819b46c16ea1b108c3a76cb6ad50b5d65f27b034ce11053d3829d57462f"
+    },
+    "aula3-ficha.pdf": {
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
+      "source": "fc53e4fdeb6594e7dec4af659219e1ab7688d18a6f8ab7c84bead878efa08e5d"
+    },
+    "aula3-roteiro.pdf": {
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
+      "source": "d9c67aea8a0f5b7733dac74fce2f8be48aab0c7c5259df072e141b588ddac4a2"
+    },
+    "aula3-slides.pdf": {
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
+      "source": "f65ad11d4bab2007def161c816dea78d41019e317291462d1ae8185d52136b15"
+    },
+    "aula4-desafios.pdf": {
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
+      "source": "2fac7558f8ee469ca53c7fab234cdd6f822eb32cab8d12a255ed23a4ca96fe70"
+    },
+    "aula4-ficha.pdf": {
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
+      "source": "e9e07b350193a612e88d5353ebc69490e7f6a02ab5ad97486bebe6f8a078f1fb"
+    },
+    "aula4-roteiro.pdf": {
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
+      "source": "c09ad8b2d9b06a9a6c8db52d8162657bdcfb4eb596493d2c52e4ded3f8df06ef"
+    },
+    "aula4-slides.pdf": {
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
+      "source": "5990972121f80c9813c8dd9b7d10e717a139994eaeaabb23cd799e2f23dc72df"
+    },
     "bilhete-pais.pdf": {
-      "shared": "278f279fc0bfd02e4a8d6b807fe962913a99244fa31214ff62ec4efaf81013f7",
+      "shared": "c0c8d600c9e735a842bba4f7187c6045be886213564e6c05cfca03ffae955a95",
       "source": "4066fa1efe6afa0782cea1f98bcc471f240d1c90819a689fc1ce5cf37b82ecb7"
     }
   }
