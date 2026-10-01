@@ -175,7 +175,7 @@ jogos usam:
 
 | Sistema | Teclas que os jogos usam |
 |---|---|
-| `atari2600` | setas, `x` (acelerar/atirar/pular), `v` (select), `Enter` (reset) |
+| `atari2600` | setas, `x` (acelerar/atirar/pular/começar a rodada), `v` (select), `Enter` (reset) |
 | `arcade` | setas, `x` (atirar/pular), `v` (ficha), `Enter` (começar a partida) |
 | `nes` | setas, `z` (pular = A), `x` (correr = B) |
 | `snes` | setas, `x` (pular = B), `z` (mortal = A), `s` (correr e pegar = Y) |
@@ -191,7 +191,7 @@ para o placar, sem passar pela sua confirmação. Sem ele, o jogo é jogado do m
 pontuação que o aluno anotar é que chega ao placar — e essa espera a sua confirmação no painel.
 Nove jogos se pontuam sozinhos: **Pong** (a nossa página) e, no emulador, **Enduro**, **Space
 Invaders**, **River Raid**, **Pitfall!**, **Frogger**, **Galaga**, **Ms. Pac-Man** e **Donkey
-Kong**. Super Mario Bros., Super Mario World e Sonic ficam com o formulário.
+Kong**. Super Mario Bros., Super Mario World, Sonic e Kaboom! ficam com o formulário.
 
 ```yaml
 # Enduro: o odômetro de 6 dígitos fica little endian no estado do emulador

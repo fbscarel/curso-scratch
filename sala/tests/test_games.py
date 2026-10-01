@@ -14,6 +14,7 @@ from app import games
 CATALOGUE_IDS = [
     "pong",
     "space-invaders",
+    "kaboom",
     "frogger",
     "galaga",
     "donkey-kong",
@@ -102,6 +103,23 @@ def test_every_emulated_entry_points_at_a_rom_of_a_known_system():
             continue
         assert jogo.system in games.KNOWN_SYSTEMS
         assert jogo.rom and not jogo.rom.startswith("/")
+
+
+def test_every_tracked_rom_is_really_in_the_rom_directory():
+    # The fixtures write a ROM file for whatever the catalogue names, so a
+    # misspelled `rom:` in the tracked file passes the rest of the suite: only
+    # the real share, the one the app itself reads, tells them apart.
+    roms = games.roms_dir()
+    if not roms.is_dir():
+        pytest.skip(f"the ROM directory is not on this machine: {roms} (SALA_ROMS)")
+
+    missing = [
+        f"{jogo.id}: no ROM at {roms / jogo.rom}"
+        for jogo in games.catalogue()
+        if jogo.type == games.TYPE_EMULATED and games.missing_kind(jogo) == "rom"
+    ]
+
+    assert not missing, "\n".join(missing)
 
 
 def test_the_catalogue_defaults_to_the_tracked_file():
@@ -764,9 +782,9 @@ def test_only_the_games_that_can_report_their_score_do_it_themselves():
     for game_id in ("enduro", "space-invaders", "river-raid", "pitfall", "frogger",
                     "galaga", "ms-pac-man", "donkey-kong"):
         assert games.allows_auto_score(games.by_id(game_id)) is True
-    # The three games whose score we could not find a stable byte for: only the
-    # form the kid fills in.
-    for game_id in ("super-mario-bros", "super-mario-world", "sonic"):
+    # The games the catalogue cannot read a score from (Kaboom!'s RAM study is
+    # still to come): only the form the kid fills in.
+    for game_id in ("kaboom", "super-mario-bros", "super-mario-world", "sonic"):
         assert games.allows_auto_score(games.by_id(game_id)) is False
 
 

@@ -149,6 +149,21 @@
     - {keys: ["v"], action: "escolher a variação (select)"}
     - {keys: ["Enter"], action: "recomeçar (reset)"}
 
+- id: kaboom
+  title: Kaboom!
+  type: emulated
+  system: atari2600
+  core: stella2014
+  rom: "atari2600/Kaboom! (USA).zip"
+  year: 1981
+  maker: Activision
+  about: "Pegue as bombas do bombardeiro maluco com os baldes antes que elas explodam."
+  controls:
+    - {keys: ["←", "→"], action: "mover os baldes"}
+    - {keys: ["x"], action: "começar a rodada"}
+    - {keys: ["v"], action: "escolher a variação (select)"}
+    - {keys: ["Enter"], action: "recomeçar (reset)"}
+
 - id: frogger
   title: Frogger
   type: emulated
