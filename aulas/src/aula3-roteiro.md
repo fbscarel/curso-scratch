@@ -43,7 +43,7 @@ Enquanto os computadores terminam de ligar, três perguntas rápidas (slide 2): 
 Cada um abre o Firefox, clica no favorito **Sala**, escolhe o **nome** em *"Quem sou eu?"* e abre o **jogo do dia: Kaboom!** Teclas: **x** começa a rodada, **setas ← →** movem os baldes (também aparecem ao lado do jogo). Deixe jogar uns **5 minutos**.
 
 <div class="teacher" markdown="1">
-O Kaboom! não manda a pontuação sozinho: quem quiser aparecer no **placar** digita os pontos na própria página, e você aprova no painel (**Placar**). Isso pode ficar para depois da aula.
+O placar do Kaboom! é automático: os pontos vão sozinhos para o **placar** quando a partida acaba (o último balde explode). Partida que ainda está no meio quando a turma para não conta — avise *"último minuto!"* antes de encerrar.
 </div>
 
 ## 2. Um pouco de história (9–12 min)
