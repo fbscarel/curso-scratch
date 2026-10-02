@@ -64,6 +64,8 @@ describe("the admin Jogos screen", () => {
 	let fetchMock: Mock;
 	/** The settings the server would be holding, which the PUT changes. */
 	let stored: { activeGame: string | null; freeMode: boolean };
+	/** The catalogue the server would be answering with. */
+	let catalogue: AdminGame[];
 	/** Whether the server refuses the next mode write (a 422). */
 	let refuseWrite: boolean;
 	/**
@@ -79,6 +81,7 @@ describe("the admin Jogos screen", () => {
 
 	beforeEach(() => {
 		stored = { activeGame: "enduro", freeMode: false };
+		catalogue = CATALOGUE;
 		refuseWrite = false;
 		held = null;
 		fetchMock = vi.fn();
@@ -92,7 +95,7 @@ describe("the admin Jogos screen", () => {
 		fetchMock.mockImplementation((path: string, init?: RequestInit) => {
 			if (path === `${BASE}/api/games` && (init?.method ?? "GET") === "GET") {
 				if (held) return held.promise;
-				return jsonResponse(200, { ...stored, games: CATALOGUE });
+				return jsonResponse(200, { ...stored, games: catalogue });
 			}
 			if (path === `${BASE}/api/games/mode` && init?.method === "PUT") {
 				if (refuseWrite) {
@@ -114,6 +117,17 @@ describe("the admin Jogos screen", () => {
 	/** What the screen is showing for a mode button: its pressed state. */
 	function modePressed(name: string): string | null {
 		return screen.getByRole("button", { name }).getAttribute("aria-pressed");
+	}
+
+	/** The body of the mode write the screen sent. */
+	function putBody(): { activeGame: string | null; freeMode: boolean } {
+		const [, init] = fetchMock.mock.calls.find(
+			(call) => call[0] === `${BASE}/api/games/mode`,
+		) as [string, RequestInit];
+		return JSON.parse(String(init.body)) as {
+			activeGame: string | null;
+			freeMode: boolean;
+		};
 	}
 
 	it("writes both settings in one PUT when the mode is switched", async () => {
@@ -152,6 +166,93 @@ describe("the admin Jogos screen", () => {
 		expect(stored.activeGame).toBe("enduro");
 	});
 
+	it("turns every game off when Desligados is clicked", async () => {
+		render(<GamesAdmin />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Desligados" }));
+
+		// `activeGame` is the field that moves: the stored game is dropped, which
+		// is the half of the off state the teacher could not reach before.
+		await waitFor(() => expect(stored.activeGame).toBeNull());
+		const [, init] = fetchMock.mock.calls.find(
+			(call) => call[0] === `${BASE}/api/games/mode`,
+		) as [string, RequestInit];
+		expect(JSON.parse(String(init.body))).toEqual({
+			activeGame: null,
+			freeMode: false,
+		});
+		await waitFor(() => expect(modePressed("Desligados")).toBe("true"));
+		expect(modePressed("Um jogo")).toBe("false");
+		expect(modePressed("Modo livre")).toBe("false");
+		expect(stored).toEqual({ activeGame: null, freeMode: false });
+		expect(
+			screen.getByText(
+				"Os jogos estão desligados: a turma não vê jogos na página inicial.",
+			),
+		).toBeTruthy();
+	});
+
+	it("shows Desligados as the stored mode when the games are off", async () => {
+		stored = { activeGame: null, freeMode: false };
+		render(<GamesAdmin />);
+
+		expect(await screen.findByText("Pronto")).toBeTruthy();
+		await waitFor(() => expect(modePressed("Desligados")).toBe("true"));
+		expect(modePressed("Um jogo")).toBe("false");
+		expect(modePressed("Modo livre")).toBe("false");
+	});
+
+	it("turns single mode on from off with the first playable game", async () => {
+		// The way back from off: "Um jogo" has to name a game for the teacher,
+		// because an empty active game with no free mode is off again.
+		stored = { activeGame: null, freeMode: false };
+		render(<GamesAdmin />);
+		await screen.findByText("Pronto");
+
+		fireEvent.click(screen.getByRole("button", { name: "Um jogo" }));
+
+		await waitFor(() => expect(modePressed("Um jogo")).toBe("true"));
+		expect(putBody()).toEqual({ activeGame: "enduro", freeMode: false });
+		expect(stored).toEqual({ activeGame: "enduro", freeMode: false });
+		expect(modePressed("Desligados")).toBe("false");
+		expect(modePressed("Modo livre")).toBe("false");
+	});
+
+	it("frees the catalogue from off without naming a game", async () => {
+		stored = { activeGame: null, freeMode: false };
+		render(<GamesAdmin />);
+		await screen.findByText("Pronto");
+
+		fireEvent.click(screen.getByRole("button", { name: "Modo livre" }));
+
+		await waitFor(() => expect(modePressed("Modo livre")).toBe("true"));
+		expect(putBody()).toEqual({ activeGame: null, freeMode: true });
+		expect(stored).toEqual({ activeGame: null, freeMode: true });
+		expect(modePressed("Um jogo")).toBe("false");
+		expect(modePressed("Desligados")).toBe("false");
+	});
+
+	it("keeps Um jogo disabled while no game can be played", async () => {
+		// With nothing playable, "Um jogo" could only write the off state again
+		// and leave the screen saying the games are off, so it is disabled --
+		// and "Nenhum jogo pronto" is what says why.
+		stored = { activeGame: null, freeMode: false };
+		catalogue = CATALOGUE.filter((game) => !game.playable);
+		render(<GamesAdmin />);
+
+		expect(await screen.findByText(/Nenhum jogo pronto/)).toBeTruthy();
+		expect(
+			(screen.getByRole("button", { name: "Um jogo" }) as HTMLButtonElement)
+				.disabled,
+		).toBe(true);
+		// "Modo livre" is the way out of off with nothing playable, so it stays
+		// live.
+		expect(
+			(screen.getByRole("button", { name: "Modo livre" }) as HTMLButtonElement)
+				.disabled,
+		).toBe(false);
+	});
+
 	it("keeps the mode the teacher chose while the reload is in flight", async () => {
 		// The write reloads the catalogue, and the reload's answer is what the
 		// seed effect copies the settings from. Reading the write's own (void)
@@ -165,7 +266,7 @@ describe("the admin Jogos screen", () => {
 		held = {
 			promise: answer.promise,
 			open: () =>
-				answer.resolve(jsonResponse(200, { ...stored, games: CATALOGUE })),
+				answer.resolve(jsonResponse(200, { ...stored, games: catalogue })),
 		};
 
 		fireEvent.click(screen.getByRole("button", { name: "Modo livre" }));

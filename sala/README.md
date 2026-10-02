@@ -122,6 +122,16 @@ vivem só no `sala/dados/config.toml`.
 | **Jogos** | O que a turma pode jogar na aula de hoje, e o que falta em cada jogo. |
 | **Placar** | As pontuações da turma, e o que espera a sua confirmação. |
 
+Na aba **Jogos** são três modos: **Um jogo** mostra só o jogo escolhido em "Jogo ativo", **Modo
+livre** libera o catálogo inteiro e **Desligados** não mostra jogo nenhum — a turma não vê nem o
+bloco de jogos na página inicial. Com os jogos desligados, escolher um jogo na lista liga o modo
+"Um jogo"; no modo livre, a lista só guarda o jogo para quando voltar ao "Um jogo".
+
+O modo escolhido no painel fica guardado no banco, mas quem sobe a sala com `just sala jogo=…`
+**define o modo de novo a cada vez que o servidor sobe**, por cima da escolha do painel: o serviço do
+laptop, que roda com `jogo=livre`, volta em modo livre depois de um reinício. Sem o argumento, o
+servidor sobe com o modo que o painel deixou.
+
 ## Onde ficam os dados
 
 Tudo o que a sala guarda vive em `sala/dados/` (ou onde `SALA_DADOS` apontar):

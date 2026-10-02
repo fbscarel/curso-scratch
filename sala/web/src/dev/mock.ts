@@ -321,7 +321,9 @@ let identity: number | null = null;
 let activeGame: string | null = DEFAULT_ACTIVE_GAME;
 /**
  * Free mode is the mock's starting mode, so `/jogo` is the grid the screen is
- * looked at with. "Um jogo" is one click away on the teacher's screen.
+ * looked at with. "Um jogo" and "Desligados" are one click away on the
+ * teacher's screen, and the off state is stored here exactly as the server
+ * stores it: no active game and no free mode.
  */
 let freeMode = true;
 

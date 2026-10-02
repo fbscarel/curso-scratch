@@ -6,7 +6,7 @@ import {
 	UploadCloud,
 	UserRound,
 } from "lucide-react";
-import { ComingSoon, FeatureTile } from "@/components/Tiles";
+import { FeatureTile } from "@/components/Tiles";
 import { listGames } from "@/lib/api";
 import { formatLongDate } from "@/lib/format";
 import type { GamesView, PublicSession } from "@/lib/types";
@@ -20,9 +20,11 @@ import { useAsync } from "@/lib/useAsync";
  *
  * The Jogo tile is only there when there is a game to open, and it names what
  * is behind it: in single mode the game itself, in free mode the whole
- * catalogue. With no game visible the tile would open an empty screen, so the
- * "em breve" card stands in its place -- and while the answer is still coming,
- * neither is shown, because a card that guessed would be wrong half the time.
+ * catalogue. With no game visible -- the teacher turned the games off, or
+ * nothing is playable right now -- the tile is simply absent, and nothing
+ * stands in its place: a card for a game that does not exist would teach a kid
+ * that the screen lies. While the answer is still coming the tile is not shown
+ * either, because one that guessed would be wrong half the time.
  */
 export function Home({ session }: { session: PublicSession }) {
 	const lesson = session.currentLesson;
@@ -108,9 +110,6 @@ export function Home({ session }: { session: PublicSession }) {
 						icon={<UserRound className="size-9" />}
 						color="events"
 					/>
-					{view !== null && view.games.length === 0 && (
-						<ComingSoon>Em breve: jogos!</ComingSoon>
-					)}
 				</div>
 			</section>
 		</div>

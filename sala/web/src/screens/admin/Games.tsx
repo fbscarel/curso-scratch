@@ -37,10 +37,11 @@ import { useAsync } from "@/lib/useAsync";
 /**
  * GamesAdmin is the teacher's control over what the kids can play.
  *
- * Two settings, and they are one decision: free mode turns the whole playable
- * catalogue on, and single mode turns one game on. Both are written together in
+ * Three states, and they are one decision: free mode turns the whole playable
+ * catalogue on, single mode turns one game on, and off turns every game off --
+ * no active game and no free mode. All of the settings are written together in
  * one request, because a screen that sent only the one it changed could undo
- * the other from a stale copy.
+ * the others from a stale copy.
  *
  * The table below is the WHOLE catalogue, including the entries that cannot be
  * played. That is the point of it: a game that is not on the kids' screen has to
@@ -111,6 +112,11 @@ export function GamesAdmin() {
 		});
 	}
 
+	/** Turns every game off: no active game and no free mode, in one write. */
+	function chooseOff() {
+		void save({ activeGame: null, freeMode: false });
+	}
+
 	function chooseGame(id: string) {
 		void save({ activeGame: id, freeMode: free });
 	}
@@ -144,7 +150,7 @@ export function GamesAdmin() {
 						<CardHeader>
 							<CardTitle>Modo dos jogos</CardTitle>
 							<CardDescription>
-								Um jogo só, ou o catálogo inteiro liberado para a turma.
+								Um jogo só, o catálogo inteiro, ou nenhum jogo.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="flex flex-wrap items-end gap-6">
@@ -152,9 +158,13 @@ export function GamesAdmin() {
 								<Label>Modo</Label>
 								<div className="flex gap-2">
 									<Button
-										variant={free ? "outline" : "default"}
-										disabled={action.busy}
-										aria-pressed={!free}
+										variant={!free && active !== null ? "default" : "outline"}
+										// With nothing playable, "Um jogo" could only write
+										// the off state again -- the screen would keep saying
+										// the games are off while the button claimed
+										// otherwise. "Nenhum jogo pronto" says why.
+										disabled={action.busy || playable.length === 0}
+										aria-pressed={!free && active !== null}
 										onClick={() => chooseMode(false)}
 									>
 										Um jogo
@@ -167,7 +177,21 @@ export function GamesAdmin() {
 									>
 										Modo livre
 									</Button>
+									<Button
+										variant={!free && active === null ? "default" : "outline"}
+										disabled={action.busy}
+										aria-pressed={!free && active === null}
+										onClick={chooseOff}
+									>
+										Desligados
+									</Button>
 								</div>
+								{!free && active === null && (
+									<p className="text-muted-foreground text-sm">
+										Os jogos estão desligados: a turma não vê jogos na página
+										inicial.
+									</p>
+								)}
 							</div>
 
 							<div className="space-y-2">

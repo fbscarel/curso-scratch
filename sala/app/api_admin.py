@@ -502,7 +502,10 @@ def games_list() -> Response:
 @bp.put("/games/mode")
 @auth.admin_required
 def games_mode() -> Response:
-    """Switch between one game and free mode.
+    """Switch between one game, free mode, and every game off.
+
+    The off state is both settings cleared at once -- no active game and no free
+    mode -- and it is what the kids' screen reads as "no games".
 
     Both fields are read and validated before anything is written: a request the
     API refuses with 422 leaves the settings exactly as it found them.

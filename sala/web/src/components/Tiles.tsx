@@ -1,4 +1,4 @@
-import { ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type * as React from "react";
 import { Link } from "@/components/Bits";
 import { SCRATCH, type ScratchColor } from "@/lib/palette";
@@ -49,23 +49,5 @@ export function FeatureTile({
 				className="size-8 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1"
 			/>
 		</Link>
-	);
-}
-
-/**
- * ComingSoon is the honest version of a feature that does not exist yet.
- *
- * A tile that opens nothing is worse than no tile: it teaches a kid that the
- * screen lies. This one says what is coming, in the same playful register, and
- * is not clickable.
- */
-export function ComingSoon({ children }: { children: React.ReactNode }) {
-	return (
-		<div className="flex min-h-32 animate-in items-center gap-4 rounded-3xl border-2 border-border border-dashed bg-card/50 p-5 text-muted-foreground duration-500 fade-in">
-			<span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-muted">
-				<Sparkles className="size-8" />
-			</span>
-			<span className="font-bold text-xl">{children}</span>
-		</div>
 	);
 }

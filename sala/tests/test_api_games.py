@@ -35,6 +35,20 @@ def test_without_a_mode_no_game_is_listed(client, install_games):
     assert client.get(API).get_json() == {"mode": "single", "games": []}
 
 
+def test_the_off_mode_hides_the_game_and_refuses_its_rom(client, install_games, set_game_mode):
+    """The state the teacher's "Desligados" writes: no active game, no free mode.
+
+    The empty list alone would not be enough: the game's own route and its ROM
+    have to refuse too, or a page that remembered the game could still open it.
+    """
+    install_games()
+    set_game_mode()
+
+    assert client.get(API).get_json() == {"mode": "single", "games": []}
+    assert client.get(f"{API}/enduro").status_code == 404
+    assert client.get(f"{API}/enduro/rom").status_code == 404
+
+
 def test_single_mode_lists_the_active_game(client, install_games, set_game_mode):
     install_games()
     set_game_mode(active="enduro")
