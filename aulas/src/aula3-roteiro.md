@@ -18,7 +18,7 @@ kind: doc
 
 ## Antes da aula
 
-- ☐ No notebook: `cd ~/scratch/sala && just sala kaboom` e confira no painel (**Aulas**) que as Aulas 3 (06/10) e 4 (09/10) estão cadastradas.
+- ☐ No notebook, com a Sala no ar (se o notebook reiniciou: `cd ~/scratch/sala && just sala`), abra o painel: em **Jogos**, **Um jogo** e, em **Jogo ativo**, **Kaboom!**; em **Aulas**, confira que as Aulas 3 (06/10) e 4 (09/10) estão cadastradas.
 - ☐ Ligar os computadores (pendrive, "copiar para RAM").
 - ☐ Projetor com `aula3-slides.pdf`; no notebook, deixe aberto o jogo pronto `aulas/demos/Aula3-PegaFrutas-pronto.sb3` para mostrar.
 - ☐ Imprimir a **Ficha 3** (12 + 3 extras, frente e verso) e a **folha de desafios** (`aula3-desafios.pdf`, 6 cópias).

@@ -18,7 +18,7 @@ kind: doc
 
 ## Antes da aula
 
-- ☐ No notebook: `cd ~/scratch/sala && just sala pong`.
+- ☐ No notebook, com a Sala no ar (se o notebook reiniciou: `cd ~/scratch/sala && just sala`), abra o painel: em **Jogos**, **Um jogo** e, em **Jogo ativo**, **Pong**.
 - ☐ Ligar os computadores (pendrive, "copiar para RAM").
 - ☐ Projetor com `aula4-slides.pdf`; no notebook, deixe aberto `Aula5-PongInicio` (pasta `aulas/projetos/`): é o Pong desta aula pronto, para mostrar.
 - ☐ Imprimir a **Ficha 4** (12 + 3 extras, frente e verso) e a **folha de desafios** (`aula4-desafios.pdf`, 6 cópias).
