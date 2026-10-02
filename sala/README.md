@@ -127,10 +127,10 @@ livre** libera o catálogo inteiro e **Desligados** não mostra jogo nenhum — 
 bloco de jogos na página inicial. Com os jogos desligados, escolher um jogo na lista liga o modo
 "Um jogo"; no modo livre, a lista só guarda o jogo para quando voltar ao "Um jogo".
 
-O modo escolhido no painel fica guardado no banco, mas quem sobe a sala com `just sala jogo=…`
-**define o modo de novo a cada vez que o servidor sobe**, por cima da escolha do painel: o serviço do
-laptop, que roda com `jogo=livre`, volta em modo livre depois de um reinício. Sem o argumento, o
-servidor sobe com o modo que o painel deixou.
+O modo escolhido no painel fica guardado no banco. `just sala` sem argumento sobe com o modo que o
+painel deixou — é assim que o serviço do laptop roda, então a escolha do painel sobrevive a um
+reinício do servidor. Já `just sala <jogo>` (ou `jogo=livre`) **define o modo de novo** ao subir,
+por cima da escolha do painel.
 
 ## Onde ficam os dados
 
