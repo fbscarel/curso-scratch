@@ -66,6 +66,9 @@ imagem já vem pronta para chegar nele:
   `.sb3` salvos na pasta do aluno, os nomes da turma lidos do servidor, e manda o arquivo escolhido.
   Ele procura o servidor em `http://sala.local:8000`; quando não encontra, pede o endereço que o
   professor escreveu no quadro.
+- o Firefox entrega ao TurboWarp Desktop os `.sb3` que chegam como projeto do Scratch (tipo
+  `application/x.scratch.sb3`, política `Handlers`): o **Projeto da aula** da sala abre no TurboWarp
+  com um clique, e uma cópia fica em `Downloads`.
 
 ## Contas
 

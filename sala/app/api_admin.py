@@ -15,7 +15,7 @@ from datetime import date
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
-from . import auth, covers, games, scores, uploads
+from . import auth, covers, games, scores, starter, uploads
 from .db import SETTING_LESSON_OVERRIDE, delete_setting, get_db, set_setting
 from .lessons import current_lesson, get_lesson, lesson_override, today
 
@@ -478,6 +478,53 @@ def uploads_zip(number: int) -> Response:
     # request that built it, not even if the client drops mid-download.
     archive.unlink(missing_ok=True)
     return response
+
+
+# --- projeto da aula -------------------------------------------------------
+
+
+@bp.get("/starter")
+@auth.admin_required
+def starter_get() -> Response:
+    """The aula's project, or null when there is none."""
+    return jsonify(
+        starter.payload(get_db(), current_app.config["SALA_CONFIG"].data_dir)
+    )
+
+
+@bp.post("/starter")
+@auth.admin_required
+def starter_upload() -> Response:
+    """Take the teacher's .sb3 and make it the aula's project, replacing the old."""
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        raise auth.ApiError(422, starter.BAD_TYPE_MESSAGE)
+    name = starter.project_name(file.filename)
+    if name is None:
+        raise auth.ApiError(422, starter.BAD_TYPE_MESSAGE)
+    connection = get_db()
+    data_dir = current_app.config["SALA_CONFIG"].data_dir
+    try:
+        starter.replace(
+            connection, data_dir, name=name, stream=file.stream, moment=uploads.now()
+        )
+    except starter.NotAProject as error:
+        raise auth.ApiError(422, str(error)) from error
+    except starter.TooLarge as error:
+        raise auth.ApiError(413, str(error)) from error
+    return jsonify(starter.payload(connection, data_dir)), 201
+
+
+@bp.delete("/starter")
+@auth.admin_required
+def starter_delete() -> Response:
+    """Take the aula's project off the kids' screen and off the disk."""
+    connection = get_db()
+    data_dir = current_app.config["SALA_CONFIG"].data_dir
+    if starter.payload(connection, data_dir) is None:
+        raise auth.ApiError(404, starter.NOT_FOUND_MESSAGE)
+    starter.remove(connection, data_dir)
+    return Response(status=204)
 
 
 # --- games -----------------------------------------------------------------

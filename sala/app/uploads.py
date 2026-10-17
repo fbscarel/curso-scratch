@@ -261,8 +261,13 @@ def remove_stored_file(data_dir: Path, stored_path: str) -> None:
         pass
 
 
-def _stream_to_temp(directory: Path, stream: IO[bytes]) -> tuple[Path, int]:
-    """Write the upload beside its final home; return the temp file and its size."""
+def stream_to_temp(directory: Path, stream: IO[bytes]) -> tuple[Path, int]:
+    """Write an upload beside its final home; return the temp file and its size.
+
+    Shared with `starter`, which needs the same thing: the bytes land in the
+    target folder so the move onto the final name is a rename inside one
+    filesystem, and a failure leaves nothing behind.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     handle_fd, temp_name = tempfile.mkstemp(dir=directory, prefix=TEMP_PREFIX, suffix=TEMP_SUFFIX)
     temp = Path(temp_name)
@@ -301,7 +306,7 @@ def save_upload(
     # take the upload with it.
     _assert_inside_aulas(data_dir, directory)
     name = f"{stamp(moment)} - {sanitize_filename(original_name)}"
-    temp, size = _stream_to_temp(directory, stream)
+    temp, size = stream_to_temp(directory, stream)
     if size == 0:
         temp.unlink(missing_ok=True)
         raise EmptyUpload(EMPTY_MESSAGE)

@@ -8,11 +8,12 @@ needs the session's CSRF token (see `auth.guard`).
 
 from __future__ import annotations
 
+import os
 import sqlite3
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file, session
 
-from . import auth, covers, games, scores, uploads
+from . import auth, covers, games, scores, starter, uploads
 from .db import get_db
 from .lessons import current_lesson, today
 from .sheets import sheets_payload
@@ -176,6 +177,46 @@ def upload_download(upload_id: int) -> Response:
 def sheets_list() -> Response:
     """The folhas of every aula up to the current one."""
     return jsonify(sheets_payload(get_db()))
+
+
+# --- projeto da aula -------------------------------------------------------
+
+
+@bp.get("/starter")
+def starter_info() -> Response:
+    """The aula's project for the kids' tile, or null; no name is needed."""
+    return jsonify(
+        starter.public_payload(get_db(), current_app.config["SALA_CONFIG"].data_dir)
+    )
+
+
+@bp.get("/starter/file")
+def starter_file() -> Response:
+    """The project itself, as the file the browser saves or opens in Scratch.
+
+    Sent as an attachment of type `application/x.scratch.sb3`: Firefox saves it
+    to the kid's downloads and, on an image whose policy says so, opens it in
+    TurboWarp Desktop in the same click. The bytes come from a descriptor the
+    route opens under the slot's lock, so the teacher's next upload — which
+    unlinks this file — cannot take the project away from a download running now.
+    """
+    opened = starter.open_stored_file(get_db(), current_app.config["SALA_CONFIG"].data_dir)
+    if opened is None:
+        raise auth.ApiError(404, starter.NOT_FOUND_MESSAGE)
+    handle, name = opened
+    response = send_file(
+        handle,
+        mimetype=starter.MIME_TYPE,
+        as_attachment=True,
+        download_name=name,
+    )
+    # A file object carries no size of its own and the browser needs the length
+    # to save the project whole.
+    response.content_length = os.fstat(handle.fileno()).st_size
+    # The teacher swaps this file between classes: a kid has to get what is on
+    # disk now, not what a cache remembers.
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # --- games -----------------------------------------------------------------

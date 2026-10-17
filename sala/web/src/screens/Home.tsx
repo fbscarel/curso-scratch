@@ -1,15 +1,16 @@
 import {
 	CalendarDays,
+	Cat,
 	FileText,
 	FolderOpen,
 	Gamepad2,
 	UploadCloud,
 	UserRound,
 } from "lucide-react";
-import { FeatureTile } from "@/components/Tiles";
-import { listGames } from "@/lib/api";
+import { FeatureTile, FileTile } from "@/components/Tiles";
+import { getStarter, listGames } from "@/lib/api";
 import { formatLongDate } from "@/lib/format";
-import type { GamesView, PublicSession } from "@/lib/types";
+import type { GamesView, PublicSession, PublicStarter } from "@/lib/types";
 import { useAsync } from "@/lib/useAsync";
 
 /**
@@ -17,6 +18,13 @@ import { useAsync } from "@/lib/useAsync";
  *
  * Which lesson is running today, and the things a kid can do right now. The
  * tiles are the features that exist and open something.
+ *
+ * The Projeto da aula tile comes FIRST when the teacher has picked one: it is
+ * what the class is working on, and the grid is two columns on the lab's
+ * 1366x768 monitors, so anywhere else it would be below the fold. It is a plain
+ * link and not a screen of ours (see `FileTile`): the click is a download, and
+ * the kid opens the file from Firefox's list -- or the system opens it, when
+ * the server says so. With no project picked the tile is simply absent.
  *
  * The Jogo tile is only there when there is a game to open, and it names what
  * is behind it: in single mode the game itself, in free mode the whole
@@ -32,7 +40,12 @@ export function Home({ session }: { session: PublicSession }) {
 		(signal) => listGames(signal),
 		"home-games",
 	);
+	const starter = useAsync<PublicStarter | null>(
+		(signal) => getStarter(signal),
+		"home-starter",
+	);
 	const view = games.data;
+	const project = starter.data;
 
 	return (
 		<div className="space-y-8">
@@ -65,10 +78,24 @@ export function Home({ session }: { session: PublicSession }) {
 			<section className="space-y-4">
 				<h2 className="font-extrabold text-3xl">O que dá para fazer</h2>
 				<div className="grid gap-4 sm:grid-cols-2">
-					{/* The jogo goes FIRST when there is one. It is what a kid opens
-					    the screen for, and the grid is two columns on the lab's
-					    1366x768 monitors -- further down, the tile they want most
-					    would be the one below the fold. */}
+					{/* The projeto da aula goes FIRST when there is one, and the jogo
+					    right after it: the two things a kid opens the screen for,
+					    and the grid is two columns on the lab's 1366x768 monitors
+					    -- further down, the tile they want most would be the one
+					    below the fold. */}
+					{project && (
+						<FileTile
+							href={project.url}
+							title="Projeto da aula"
+							// The kid reads the project's name, not its extension.
+							description={
+								project.name.replace(/\.sb3$/i, "").trim() ||
+								"Abra no TurboWarp"
+							}
+							icon={<Cat className="size-9" />}
+							color="sensing"
+						/>
+					)}
 					{view !== null && view.games.length > 0 && (
 						<FeatureTile
 							to="/jogo"

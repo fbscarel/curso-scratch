@@ -3,6 +3,7 @@ import type {
 	AdminGames,
 	AdminScore,
 	AdminSession,
+	AdminStarter,
 	AdminStudent,
 	AdminUpload,
 	Attendance,
@@ -13,6 +14,7 @@ import type {
 	LessonSheets,
 	OverrideView,
 	PublicSession,
+	PublicStarter,
 	Scoreboard,
 	ScoreMethod,
 	ScoreStatus,
@@ -101,6 +103,10 @@ export class ApiError extends Error {
 
 interface RequestOptions {
 	method?: string;
+	/**
+	 * The body, as a JSON value. A `FormData` is sent as multipart instead --
+	 * the one write here that is not JSON is the starter upload.
+	 */
 	body?: unknown;
 	signal?: AbortSignal;
 	/** Suppress the unauthorized handler. Only the session probes and login set this. */
@@ -196,7 +202,6 @@ async function sendOnce(path: string, opts: RequestOptions): Promise<Response> {
 	const method = (opts.method ?? "GET").toUpperCase();
 	const headers: Record<string, string> = { Accept: "application/json" };
 	if (isMutating(method)) headers[CSRF_HEADER] = await csrfTokenOrFetch();
-	if (opts.body !== undefined) headers["Content-Type"] = "application/json";
 
 	const init: RequestInit = {
 		method,
@@ -204,7 +209,16 @@ async function sendOnce(path: string, opts: RequestOptions): Promise<Response> {
 		credentials: "same-origin",
 		redirect: "error",
 	};
-	if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
+	const body = opts.body;
+	if (body instanceof FormData) {
+		// A FormData carries its own Content-Type, boundary included: writing
+		// `application/json` over it would make the server read the parts as a
+		// malformed JSON body.
+		init.body = body;
+	} else if (body !== undefined) {
+		headers["Content-Type"] = "application/json";
+		init.body = JSON.stringify(body);
+	}
 	if (opts.signal) init.signal = opts.signal;
 
 	return fetch(path, init);
@@ -473,6 +487,21 @@ export function listSheets(signal?: AbortSignal): Promise<LessonSheets[]> {
 }
 
 /**
+ * getStarter is the aula's project, or null when the teacher has not picked one.
+ *
+ * The null is the answer and not an error: a class that never got a project is
+ * the ordinary state of the screen, and the tile is simply absent.
+ */
+export function getStarter(
+	signal?: AbortSignal,
+): Promise<PublicStarter | null> {
+	return request<PublicStarter | null>(
+		`${API_PREFIX}/starter`,
+		optionalSignal(signal),
+	);
+}
+
+/**
  * listGames is the games the teacher has made visible, and the mode they are
  * visible in.
  *
@@ -721,6 +750,49 @@ export function moveUpload(id: number, lessonNumber: number): Promise<void> {
 /** adminLessonZipUrl is the whole aula as one download. */
 export function adminLessonZipUrl(lessonNumber: number): string {
 	return adminPath(`/uploads/lesson/${lessonNumber}.zip`);
+}
+
+/**
+ * getAdminStarter is the aula's project as the teacher's card shows it, or null
+ * when there is none.
+ */
+export function getAdminStarter(
+	signal?: AbortSignal,
+): Promise<AdminStarter | null> {
+	return request<AdminStarter | null>(
+		adminPath("/starter"),
+		optionalSignal(signal),
+	);
+}
+
+/**
+ * uploadStarter hands the teacher's .sb3 to the one slot, replacing whatever was
+ * there.
+ *
+ * Multipart, like the kid's upload. The server writes the new file beside the
+ * old one and renames it in, so a kid downloading at that moment gets one whole
+ * project or the other -- never half of either.
+ */
+export function uploadStarter(file: File): Promise<void> {
+	const form = new FormData();
+	form.append("file", file);
+	return mutate(adminPath("/starter"), { method: "POST", body: form });
+}
+
+/** deleteStarter takes the aula's project off the kids' screen. */
+export function deleteStarter(): Promise<void> {
+	return mutate(adminPath("/starter"), { method: "DELETE" });
+}
+
+/**
+ * starterFileUrl is where the project's bytes are served.
+ *
+ * The public route and not a second admin one: it needs no session, and the
+ * teacher's link carries `download`, which is what forces the save when the
+ * server's disposition is `inline`.
+ */
+export function starterFileUrl(): string {
+	return `${API_PREFIX}/starter/file`;
 }
 
 /**

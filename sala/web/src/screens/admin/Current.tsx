@@ -23,18 +23,23 @@ import { formatLongDate } from "@/lib/format";
 import type { AdminSession, Lesson } from "@/lib/types";
 import { useAction } from "@/lib/useAction";
 import { useAsync } from "@/lib/useAsync";
+import { StarterCard } from "@/screens/admin/Starter";
 
 /** The sentinel the select uses for "no override"; a lesson number is a number. */
 const AUTOMATIC = "auto";
 
 /**
- * Current is the "Aula atual" section: which aula the lab is in, and the switch
- * that overrides the date.
+ * Current is the "Aula atual" section: which aula the lab is in, the switch that
+ * overrides the date, and the aula's project.
  *
  * The date rule (latest lesson whose date has arrived) is right almost always,
  * and the exception is the reason this screen exists: the class slips a day, and
  * without the override every upload for the rest of the afternoon files itself
  * under the wrong aula.
+ *
+ * The project card is here for the same reason: it is the other thing the
+ * teacher sets between two classes, and it belongs on the screen they open
+ * first.
  */
 export function Current({
 	session,
@@ -166,6 +171,10 @@ export function Current({
 					</Card>
 				</div>
 			)}
+
+			<div className="mt-6">
+				<StarterCard />
+			</div>
 		</div>
 	);
 }

@@ -105,6 +105,14 @@ arquivos". O jogo abre dentro da própria página, num emulador que roda no nave
 carrega a ROM pelo servidor da sala. Nos fliperamas, a página já desliga o aviso de copyright em
 inglês que o emulador mostraria antes do jogo: a turma cai direto na tela do jogo.
 
+Quando você escolhe um projeto na aba **Aula atual**, a turma vê mais um bloco na página, em
+primeiro lugar: o **Projeto da aula**, com o nome do arquivo sem o `.sb3`. Um clique e o projeto abre
+numa janela nova do TurboWarp Desktop; uma cópia fica em `Downloads`, e é nela que o **Salvar** do
+TurboWarp grava (o **Entregar trabalho** acha o arquivo lá). Isso vale para os pendrives gravados a
+partir de 17/10/2026, cujo Firefox entrega o `.sb3` ao TurboWarp. Nos pendrives mais antigos o
+clique só baixa o arquivo, e o aluno abre pelo TurboWarp: **Arquivo → Carregar do seu computador →
+Downloads**.
+
 ## O painel do professor
 
 O painel fica no caminho que o `just sala-config` definiu (`/professor-xxxx`, por padrão), no mesmo
@@ -114,7 +122,7 @@ vivem só no `sala/dados/config.toml`.
 
 | Aba | O que faz |
 |---|---|
-| **Aula atual** | A aula que a turma está fazendo agora; dá para escolher outra manualmente. |
+| **Aula atual** | A aula que a turma está fazendo agora; dá para escolher outra manualmente, e escolher o projeto da aula. |
 | **Alunos** | Os nomes que aparecem em "Quem é você?". |
 | **Aulas** | O calendário do curso. A aula atual sai daqui. |
 | **Presença** | Marque quem veio à aula. Só o professor marca. |
@@ -132,6 +140,14 @@ painel deixou — é assim que o serviço do laptop roda, então a escolha do pa
 reinício do servidor. Já `just sala <jogo>` (ou `jogo=livre`) **define o modo de novo** ao subir,
 por cima da escolha do painel.
 
+O **Projeto da aula**, na aba **Aula atual**, é um só, e não um por aula: você escolhe um `.sb3` e a
+turma inteira o vê na tela inicial até você trocá-lo ou removê-lo. O arquivo tem que ser um projeto
+do Scratch de verdade — um `.sb3`, que é um zip com o `project.json` dentro — e caber em 20 MB; o
+painel recusa o resto com uma frase dizendo o porquê. **Enviar projeto** (ou **Trocar**, quando já
+existe um) abre o escolhedor de arquivos do sistema e sobe o que você escolher; **Baixar** pega o
+arquivo de volta; **Remover** tira o bloco da tela da turma. Trocar o projeto não atrapalha quem
+está baixando: o arquivo novo só entra no lugar quando está inteiro.
+
 ## Onde ficam os dados
 
 Tudo o que a sala guarda vive em `sala/dados/` (ou onde `SALA_DADOS` apontar):
@@ -141,6 +157,7 @@ Tudo o que a sala guarda vive em `sala/dados/` (ou onde `SALA_DADOS` apontar):
 | `config.toml` | O caminho do painel, o hash da senha e a chave das sessões (modo `0600`). |
 | `sala.db` | O banco SQLite: alunos, aulas, presença, entregas e placar. |
 | `aulas/aula-NN/<id>-<nome>/` | Os arquivos entregues, com a data e a hora no nome. |
+| `projeto-da-aula/<nome>.sb3` | O projeto da aula: o `.sb3` que você escolheu no painel. |
 | `capas/<id>.png` | As capas dos jogos: baixadas pelo `just sala-capas`, ou as suas (`.jpg`, `.jpeg` e `.webp` também valem). |
 
 **Backup** é copiar essa pasta inteira, com o servidor parado: ela é pequena e tem tudo. Como o

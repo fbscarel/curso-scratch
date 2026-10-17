@@ -129,6 +129,37 @@ export interface LessonSheets {
 }
 
 // ---------------------------------------------------------------------------
+// Projeto da aula
+// ---------------------------------------------------------------------------
+
+/**
+ * `GET /api/starter`: the one project the teacher picked for the class.
+ *
+ * `null` when there is none, which is the answer for a class that has not
+ * started one -- the kids' screen has no tile to show and nothing stands in for
+ * it. `url` is served by the lab server, never built here: where the file lives
+ * is the server's business, and a link that outlived a replaced project would
+ * point at the wrong bytes.
+ */
+export interface PublicStarter {
+	name: string;
+	uploadedAt: string;
+	url: string;
+}
+
+/**
+ * `GET <admin>/api/starter`: the same project as the teacher's card carries it.
+ *
+ * `size` is in bytes, like the entrega's, and `uploadedAt` is the moment the
+ * server stored the file, in the format `formatDateTime` reads.
+ */
+export interface AdminStarter {
+	name: string;
+	size: number;
+	uploadedAt: string;
+}
+
+// ---------------------------------------------------------------------------
 // Jogos
 // ---------------------------------------------------------------------------
 

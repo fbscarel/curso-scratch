@@ -108,6 +108,18 @@
         "Value": "blocked",
         "Locked": true
       }
+    },
+    "Handlers": {
+      "mimeTypes": {
+        "application/x.scratch.sb3": {
+          "action": "useSystemDefault"
+        }
+      },
+      "extensions": {
+        "sb3": {
+          "action": "useSystemDefault"
+        }
+      }
     }
   }
 }

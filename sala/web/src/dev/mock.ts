@@ -58,6 +58,13 @@ interface MockUpload {
 	createdAt: string;
 }
 
+/** The aula's project: one slot, `null` when the teacher has not picked one. */
+interface MockStarter {
+	name: string;
+	size: number;
+	uploadedAt: string;
+}
+
 /** One pontuação, as the scores table holds it. */
 interface MockScore {
 	id: number;
@@ -280,6 +287,21 @@ const CATALOGUE: MockGame[] = [
 	},
 ];
 
+/**
+ * seedStarter is the aula's project the screens are looked at with.
+ *
+ * It starts with one, so the kids' home screen has the tile and the teacher's
+ * card has something to replace and to remove. "Enviar projeto" -- the card
+ * with no project -- is what the teacher sees after Remover.
+ */
+function seedStarter(): MockStarter {
+	return {
+		name: "aula-4-pong.sb3",
+		size: 84300,
+		uploadedAt: `${isoDay(0)} 14:20:00`,
+	};
+}
+
 /** The game the mock starts on, and the mode it starts in. */
 const DEFAULT_ACTIVE_GAME = "enduro";
 
@@ -315,6 +337,7 @@ let lessons: MockLesson[] = [];
 let attendance = new Map<number, Set<number>>();
 let uploads: MockUpload[] = [];
 let scores: MockScore[] = [];
+let starter: MockStarter | null = null;
 let override: number | null = null;
 let signedIn = true;
 let identity: number | null = null;
@@ -360,6 +383,7 @@ function resetData(): void {
 	if (today !== undefined) attendance.set(today, new Set([1, 2, 4, 5]));
 	uploads = seedUploads();
 	scores = seedScores();
+	starter = seedStarter();
 	override = null;
 	signedIn = true;
 	identity = null;
@@ -1003,6 +1027,18 @@ function fileResponse(name: string): Response {
 	});
 }
 
+/** starterResponse is the aula's project, with the type the server sets. */
+function starterResponse(name: string): Response {
+	return new Response(`Projeto de mentira (${MOCK_MARKER}): ${name}`, {
+		status: 200,
+		headers: {
+			"Content-Type": "application/x.scratch.sb3",
+			"Cache-Control": "no-store",
+			"Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+		},
+	});
+}
+
 function handlePublic(
 	method: string,
 	api: string,
@@ -1053,6 +1089,23 @@ function handlePublic(
 		return fileResponse(upload.name);
 	}
 	if (method === "GET" && api === "/sheets") return json(200, sheetList());
+	if (method === "GET" && api === "/starter") {
+		return json(
+			200,
+			starter === null
+				? null
+				: {
+						name: starter.name,
+						uploadedAt: starter.uploadedAt,
+						url: "/api/starter/file",
+					},
+		);
+	}
+	if (method === "GET" && api === "/starter/file") {
+		if (starter === null)
+			return failure(404, "Não encontrei o projeto da aula.");
+		return starterResponse(starter.name);
+	}
 	if (method === "GET" && api === "/games") {
 		return json(200, {
 			mode: freeMode ? "free" : "single",
@@ -1314,6 +1367,41 @@ function handleAdmin(
 				else marks.delete(student.id);
 			}
 			attendance.set(number, marks);
+			return empty();
+		}
+	}
+
+	/**
+	 * The aula's project: one slot, read, replaced and removed from here.
+	 *
+	 * The upload is the one multipart body the admin tree sends. The mock reads
+	 * the extension and not the bytes -- checking that the file really is a zip
+	 * with a `project.json` would make this handler asynchronous -- so a file
+	 * that is not a project is the one refusal this does not reproduce.
+	 */
+	if (api === "/starter") {
+		if (method === "GET") {
+			return json(200, starter === null ? null : { ...starter });
+		}
+		if (method === "POST") {
+			const file = body instanceof FormData ? body.get("file") : null;
+			if (!(file instanceof File)) {
+				return failure(422, "Escolha um projeto do Scratch (.sb3).");
+			}
+			if (!file.name.toLowerCase().endsWith(".sb3")) {
+				return failure(422, "Escolha um projeto do Scratch (.sb3).");
+			}
+			starter = {
+				name: file.name,
+				size: file.size,
+				uploadedAt: nowStamp(),
+			};
+			return json(201, { ...starter });
+		}
+		if (method === "DELETE") {
+			if (starter === null)
+				return failure(404, "Não encontrei o projeto da aula.");
+			starter = null;
 			return empty();
 		}
 	}
