@@ -15,6 +15,11 @@ projetos/ holds the starters the kids open in class; demos/ holds the finished
 games (not copied into the student image by distro, which only ships
 projetos/*.sb3).
 
+Aula5-PongInicio.sb3 is the file the class built in meeting 10, committed as the
+teacher saved it and only validated here. Aula5-Pong-pronto.sb3 is that same
+file with the meeting's two steps patched in (Sb3File), so the demo and the
+projector always show one project.
+
 Usage:
     python3 tools/build_sb3.py           # build every .sb3 project
     python3 tools/build_sb3.py --check   # validate the generated .sb3 files
@@ -608,6 +613,368 @@ def write_sb3(path: Path, project_json: dict, assets: dict[str, bytes]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Patching a saved .sb3 (the project the class built live)
+# ---------------------------------------------------------------------------
+
+
+class Sb3File:
+    """A saved .sb3 opened for narrow block patching.
+
+    An anchor names what a block *is* (opcode plus variable, procedure or
+    touching menu), never an id this script generated, so one recipe also
+    applies to a base the teacher saved later. Edits are insert, replace,
+    delete and set-literal only; assets, custom blocks and every other id pass
+    through untouched, and the same input always writes the same bytes.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+        with zipfile.ZipFile(path) as zf:
+            self.project = json.loads(zf.read("project.json").decode("utf-8"))
+            self.assets = {name: zf.read(name) for name in zf.namelist()
+                           if name != "project.json"}
+        self._next_id = 0
+
+    # -- reading -------------------------------------------------------------
+    def target(self, name: str) -> dict:
+        for target in self.project["targets"]:
+            if target["name"] == name:
+                return target
+        raise SystemExit(f"{self.path.name}: ator {name!r} não existe")
+
+    def blocks(self, target_name: str) -> dict:
+        return self.target(target_name)["blocks"]
+
+    def block(self, target_name: str, block_id: str) -> dict:
+        return self.blocks(target_name)[block_id]
+
+    def find_all(self, target_name: str, opcode: str, **match) -> list[str]:
+        """Every block with `opcode` that matches all anchor criteria."""
+        blocks = self.blocks(target_name)
+        return [block_id for block_id, block in blocks.items()
+                if block["opcode"] == opcode and self._matches(target_name, block_id, match)]
+
+    def find(self, target_name: str, opcode: str, **match) -> str:
+        """The only block with `opcode` that matches every anchor criterion."""
+        found = self.find_all(target_name, opcode, **match)
+        if len(found) != 1:
+            raise SystemExit(f"{self.path.name}/{target_name}: esperava 1 bloco {opcode} "
+                             f"{match}, achei {len(found)}")
+        return found[0]
+
+    def find_in(self, target_name: str, owner_id: str, opcode: str, **match) -> str:
+        """Like `find`, inside the substacks of the C-block `owner_id`."""
+        blocks = self.blocks(target_name)
+        nested: set[str] = set()
+        for input_name in ("SUBSTACK", "SUBSTACK2"):
+            desc = blocks[owner_id]["inputs"].get(input_name)
+            if desc is not None:
+                nested |= self._nested_set(target_name, desc[1])
+        found = [block_id for block_id in blocks
+                 if block_id in nested and blocks[block_id]["opcode"] == opcode
+                 and self._matches(target_name, block_id, match)]
+        if len(found) != 1:
+            raise SystemExit(f"{self.path.name}/{target_name}: esperava 1 bloco {opcode} "
+                             f"{match} em {owner_id}, achei {len(found)}")
+        return found[0]
+
+    # -- editing -------------------------------------------------------------
+    def new(self, target_name: str, opcode: str, inputs: dict | None = None,
+            fields: dict | None = None, mutation: dict | None = None,
+            shadow: bool = False) -> str:
+        """Create a detached block (or a menu shadow) for an insert or replace."""
+        blocks = self.blocks(target_name)
+        while True:
+            self._next_id += 1
+            block_id = f"p{self._next_id}"
+            if block_id not in blocks:
+                break
+        blocks[block_id] = {
+            "opcode": opcode,
+            "next": None,
+            "parent": None,
+            "inputs": inputs or {},
+            "fields": fields or {},
+            "shadow": shadow,
+            "topLevel": False,
+        }
+        if mutation is not None:
+            blocks[block_id]["mutation"] = mutation
+        return block_id
+
+    def insert_after(self, target_name: str, anchor_id: str, *block_ids: str) -> str:
+        """Splice a chain right after `anchor_id`; returns its last block."""
+        blocks = self.blocks(target_name)
+        first, last = self._chain(blocks, block_ids)
+        anchor = blocks[anchor_id]
+        blocks[last]["next"] = anchor["next"]
+        blocks[first]["parent"] = anchor_id
+        anchor["next"] = first
+        return last
+
+    def replace_block(self, target_name: str, anchor_id: str, *block_ids: str) -> str:
+        """Put a chain in the anchor's slot and drop the anchor's own subtree."""
+        blocks = self.blocks(target_name)
+        anchor = blocks[anchor_id]
+        parent, nxt = anchor["parent"], anchor["next"]
+        keep: set[str] = set()
+        for block_id in block_ids:
+            keep |= self._input_tree(target_name, block_id)
+        drop = self._input_tree(target_name, anchor_id) - keep
+        first, last = self._chain(blocks, block_ids)
+        blocks[first]["parent"] = parent
+        blocks[last]["next"] = nxt
+        if parent is not None:
+            up = blocks[parent]
+            if up["next"] == anchor_id:
+                up["next"] = first
+            else:
+                for desc in up["inputs"].values():
+                    for slot, part in enumerate(desc[1:], 1):
+                        if part == anchor_id:
+                            desc[slot] = first
+        elif anchor["topLevel"]:
+            blocks[first]["topLevel"] = True
+            blocks[first]["x"] = anchor.get("x", 0)
+            blocks[first]["y"] = anchor.get("y", 0)
+        else:
+            raise SystemExit(f"{self.path.name}/{target_name}: {anchor_id} não tem pai "
+                             "nem é um script solto")
+        if nxt is not None:
+            blocks[nxt]["parent"] = last
+        for block_id in drop:
+            del blocks[block_id]
+        return last
+
+    def remove(self, target_name: str, anchor_id: str) -> None:
+        """Delete a block and its own subtree, closing the gap in its stack."""
+        blocks = self.blocks(target_name)
+        block = blocks[anchor_id]
+        if block.get("shadow") or self._is_input_shadow(target_name, anchor_id):
+            raise SystemExit(f"{self.path.name}/{target_name}: {anchor_id} é um shadow (valor "
+                             "ou menu padrão de uma entrada) e não pode ser apagado; "
+                             "apague o bloco ativo da entrada")
+        parent, nxt = block["parent"], block["next"]
+        if parent is not None:
+            up = blocks[parent]
+            if up["next"] == anchor_id:
+                up["next"] = nxt
+            else:
+                for name, desc in list(up["inputs"].items()):
+                    slot = next((i for i in range(1, len(desc)) if desc[i] == anchor_id), None)
+                    if slot is None:
+                        continue
+                    if nxt is not None:
+                        desc[slot] = nxt
+                    elif len(desc) > 2:
+                        desc[:] = [INPUT_SAME_BLOCK_SHADOW, desc[2]]
+                    else:
+                        del up["inputs"][name]
+                    break
+        if nxt is not None:
+            blocks[nxt]["parent"] = parent
+        for block_id in self._input_tree(target_name, anchor_id):
+            del blocks[block_id]
+
+    def set_substack(self, target_name: str, owner_id: str, *block_ids: str,
+                     input_name: str = "SUBSTACK") -> str:
+        """Replace everything inside a C-block's substack; returns the last block."""
+        blocks = self.blocks(target_name)
+        old = blocks[owner_id]["inputs"].get(input_name)
+        keep = self._kept_set(target_name, block_ids)
+        drop = self._nested_set(target_name, old[1]) - keep if old is not None else set()
+        first, last = self._chain(blocks, block_ids)
+        blocks[last]["next"] = None
+        blocks[owner_id]["inputs"][input_name] = [INPUT_BLOCK_NO_SHADOW, first]
+        blocks[first]["parent"] = owner_id
+        for block_id in drop:
+            del blocks[block_id]
+        return last
+
+    def set_literal(self, target_name: str, anchor_id: str, input_name: str, value) -> None:
+        """Rewrite the number/text literal of an input, keeping its primitive."""
+        desc = self.block(target_name, anchor_id)["inputs"][input_name]
+        if not isinstance(desc[1], list):
+            raise SystemExit(f"{anchor_id}.{input_name}: a entrada não é um literal")
+        desc[1][1] = str(value)
+
+    # -- writing -------------------------------------------------------------
+    def save(self, path: Path) -> None:
+        """Write the patched project, deterministically, next to its assets."""
+        for target in self.project["targets"]:
+            self._relink(target)
+        write_sb3(path, self.project, self.assets)
+
+    # -- graph helpers -------------------------------------------------------
+    def _matches(self, target_name: str, block_id: str, match: dict) -> bool:
+        block = self.block(target_name, block_id)
+        for key, value in match.items():
+            if key == "var":
+                if self._writes_var(block):
+                    if block["fields"].get("VARIABLE", [None])[0] != value:
+                        return False
+                elif not self._uses_var(target_name, block_id, value):
+                    return False
+            elif key == "proccode":
+                if self._proccode(target_name, block_id) != value:
+                    return False
+            elif key == "touches":
+                if not self._has_menu(target_name, block_id, "sensing_touchingobjectmenu",
+                                      "TOUCHINGOBJECTMENU", value):
+                    return False
+            elif key == "flip":
+                if self._is_sign_flip(target_name, block_id) != value:
+                    return False
+            elif key == "inside":
+                if block_id not in self._nested_set(target_name, value):
+                    return False
+            else:
+                raise SystemExit(f"âncora desconhecida: {key!r}")
+        return True
+
+    def _proccode(self, target_name: str, block_id: str) -> str | None:
+        block = self.block(target_name, block_id)
+        if block["opcode"] == "procedures_definition":
+            prototype = block["inputs"]["custom_block"][1]
+            return self.block(target_name, prototype)["mutation"]["proccode"]
+        return block.get("mutation", {}).get("proccode")
+
+    @staticmethod
+    def _writes_var(block: dict) -> bool:
+        return block["opcode"] in ("data_setvariableto", "data_changevariableby")
+
+    def _is_sign_flip(self, target_name: str, block_id: str) -> bool:
+        """`mude [v] para ((0) - (v))`, the assignment that turns a sign over."""
+        blocks = self.blocks(target_name)
+        block = blocks[block_id]
+        name = block["fields"].get("VARIABLE", [None])[0]
+        if not self._writes_var(block) or name is None:
+            return False
+        value = block["inputs"].get("VALUE")
+        if value is None or not isinstance(value[1], str) or value[1] not in blocks:
+            return False
+        subtract = blocks[value[1]]
+        if subtract["opcode"] != "operator_subtract":
+            return False
+        zero, read = subtract["inputs"].get("NUM1"), subtract["inputs"].get("NUM2")
+        if zero is None or read is None or not isinstance(zero[1], list):
+            return False
+        if zero[1][0] not in (MATH_NUMBER, TEXT) or zero[1][1] != "0":
+            return False
+        if isinstance(read[1], str):
+            return blocks.get(read[1], {}).get("fields", {}).get("VARIABLE", [None])[0] == name
+        return read[1][0] == VARIABLE_PRIMITIVE and read[1][1] == name
+
+    def _uses_var(self, target_name: str, block_id: str, name: str) -> bool:
+        """The block or something inside it reads or writes variable `name`."""
+        blocks = self.blocks(target_name)
+        for bid in self._input_tree(target_name, block_id):
+            if blocks[bid]["fields"].get("VARIABLE", [None])[0] == name:
+                return True
+            for desc in blocks[bid]["inputs"].values():
+                for part in desc[1:]:
+                    if isinstance(part, list) and len(part) > 1 and part[0] == VARIABLE_PRIMITIVE \
+                            and part[1] == name:
+                        return True
+        return False
+
+    def _has_menu(self, target_name: str, block_id: str, opcode: str, field: str,
+                  value) -> bool:
+        blocks = self.blocks(target_name)
+        return any(blocks[bid]["opcode"] == opcode
+                   and blocks[bid]["fields"].get(field, [None])[0] == value
+                   for bid in self._input_tree(target_name, block_id))
+
+    def _input_tree(self, target_name: str, block_id: str) -> set[str]:
+        """The block and everything its inputs hold (reporters and shadows)."""
+        blocks = self.blocks(target_name)
+        seen: set[str] = set()
+        stack = [block_id]
+        while stack:
+            bid = stack.pop()
+            if bid in seen or bid not in blocks:
+                continue
+            seen.add(bid)
+            for desc in blocks[bid]["inputs"].values():
+                stack.extend(part for part in desc[1:] if isinstance(part, str))
+        return seen
+
+    def _is_input_shadow(self, target_name: str, block_id: str) -> bool:
+        """The block is the shadow slot (index 2) of some input."""
+        return any(len(desc) > 2 and desc[2] == block_id
+                   for block in self.blocks(target_name).values()
+                   for desc in block["inputs"].values())
+
+    def _kept_set(self, target_name: str, block_ids: tuple[str, ...]) -> set[str]:
+        """Blocks a reused chain carries: itself, its inputs and the chains
+        inside those inputs. The reused head's own `next` stays out — that is
+        the old stack's continuation, not part of the new chain."""
+        blocks = self.blocks(target_name)
+        seen: set[str] = set()
+        stack = [(block_id, False) for block_id in block_ids]
+        while stack:
+            bid, follow_next = stack.pop()
+            if bid in seen or bid not in blocks:
+                continue
+            seen.add(bid)
+            if follow_next and blocks[bid]["next"] is not None:
+                stack.append((blocks[bid]["next"], True))
+            for desc in blocks[bid]["inputs"].values():
+                stack.extend((part, True) for part in desc[1:] if isinstance(part, str))
+        return seen
+
+    def _nested_set(self, target_name: str, head_id: str) -> set[str]:
+        """A block, its inputs, and everything below it in its stack."""
+        blocks = self.blocks(target_name)
+        seen: set[str] = set()
+        stack = [head_id]
+        while stack:
+            bid = stack.pop()
+            if bid in seen or bid not in blocks:
+                continue
+            seen.add(bid)
+            if blocks[bid]["next"] is not None:
+                stack.append(blocks[bid]["next"])
+            for desc in blocks[bid]["inputs"].values():
+                stack.extend(part for part in desc[1:] if isinstance(part, str))
+        return seen
+
+    @staticmethod
+    def _chain(blocks: dict, block_ids: tuple[str, ...]) -> tuple[str, str]:
+        for prev, nxt in zip(block_ids, block_ids[1:]):
+            blocks[prev]["next"] = nxt
+            blocks[nxt]["parent"] = prev
+        return block_ids[0], block_ids[-1]
+
+    @staticmethod
+    def _relink(target: dict) -> None:
+        """Recompute every parent link and drop blocks nothing points at."""
+        blocks = target["blocks"]
+        parents: dict[str, str | None] = {}
+
+        def walk(block_id: str, parent: str | None) -> None:
+            if block_id in parents or block_id not in blocks:
+                return
+            parents[block_id] = parent
+            block = blocks[block_id]
+            if block["next"] is not None:
+                walk(block["next"], block_id)
+            for desc in block["inputs"].values():
+                for part in desc[1:]:
+                    if isinstance(part, str):
+                        walk(part, block_id)
+
+        for block_id, block in list(blocks.items()):
+            if block["topLevel"]:
+                walk(block_id, None)
+        for block_id in list(blocks):
+            if block_id not in parents:
+                del blocks[block_id]
+        for block_id, parent in parents.items():
+            blocks[block_id]["parent"] = parent
+
+
+# ---------------------------------------------------------------------------
 # Project 1 - Lesson 1: mouse training
 # ---------------------------------------------------------------------------
 
@@ -1083,84 +1450,86 @@ def build_pong() -> Project:
     return _pong_scene()[0]
 
 
-def _key(target, key: str) -> str:
-    return target.op("sensing_keypressed",
-                     KEY_OPTION=target.menu("sensing_keyoptions", "KEY_OPTION", key))
+# The file the class opens on 03/11: the teacher's save after meeting 10,
+# committed as saved. Swap this line for the teacher's fixed file when it lands.
+PONG_DEMO_BASE = "projetos/Aula5-PongInicio.sb3"
+
+WIN_TEXT = "Vitória do jogador "
 
 
-def _neg(target, variable) -> list:
-    """`(0 - variable)`, used to flip a velocity."""
-    return target.plug_num(target.op("operator_subtract",
-                                     NUM1=i_num(0),
-                                     NUM2=target.plug_num(target.rep_var(variable))))
+def _already_patched(sb3: Sb3File, body_id: str) -> bool:
+    """`diga (junte <texto> com (jogador)) por (2) segundos` + `pare [todos]`."""
+    blocks = sb3.blocks("Bola")
+    body = blocks[body_id]
+    if body["opcode"] != "looks_sayforsecs":
+        return False
+    secs = body["inputs"].get("SECS")
+    if secs is None or not isinstance(secs[1], list) or secs[1][1] != "2":
+        return False
+    message = body["inputs"].get("MESSAGE")
+    if message is None or not isinstance(message[1], str) or message[1] not in blocks:
+        return False
+    join = blocks[message[1]]
+    if join["opcode"] != "operator_join":
+        return False
+    second = join["inputs"].get("STRING2")
+    if second is None or not isinstance(second[1], str) or second[1] not in blocks:
+        return False
+    arg = blocks[second[1]]
+    if arg["opcode"] != "argument_reporter_string_number" \
+            or arg["fields"].get("VALUE", [None])[0] != "jogador":
+        return False
+    stop = body["next"]
+    if stop is None or stop not in blocks:
+        return False
+    return blocks[stop]["opcode"] == "control_stop" \
+        and blocks[stop]["fields"].get("STOP_OPTION", [None])[0] == "all"
 
 
-def _paddle(target, x: int, up_key: str, down_key: str) -> None:
-    target.script(40, 40,
-        target.hat("event_whenflagclicked"),
-        target.go_to(x, 0),
-        target.forever(
-            target.if_(_key(target, up_key),
-                       target.add("motion_changeyby", {"DY": i_num(8)})),
-            target.if_(_key(target, down_key),
-                       target.add("motion_changeyby", {"DY": i_num(-8)})),
-        ),
-    )
+def patch_win_message(sb3: Sb3File) -> None:
+    """`fim_jogo (jogador)` says "Vitória do jogador N" for 2 s, then stops all."""
+    definition = sb3.find("Bola", "procedures_definition", proccode="fim_jogo %s")
+    body = sb3.block("Bola", definition)["next"]
+    if body is None:
+        raise SystemExit("fim_jogo: o bloco personalizado está vazio")
+    if _already_patched(sb3, body):
+        return
+    message = sb3.block("Bola", body)["inputs"].get("MESSAGE")
+    if message is None or not isinstance(message[1], str) \
+            or message[1] not in sb3.blocks("Bola"):
+        raise SystemExit(f"{sb3.path.name}/Bola: fim_jogo esperava `diga (jogador)`, mas o "
+                         "MESSAGE do `diga` não aponta para um bloco (é um literal)")
+    if sb3.block("Bola", message[1])["opcode"] == "operator_join":
+        raise SystemExit(f"{sb3.path.name}/Bola: fim_jogo já tem um `junte` dentro do `diga`; "
+                         "corrija o arquivo base antes de gerar o demo")
+    join = sb3.new("Bola", "operator_join",
+                   {"STRING1": i_text(WIN_TEXT),
+                    "STRING2": i_plug(message[1], prim_text(""))})
+    say = sb3.new("Bola", "looks_sayforsecs",
+                  {"MESSAGE": i_plug(join, prim_text("")), "SECS": i_num(2)})
+    stop = sb3.new("Bola", "control_stop", fields={"STOP_OPTION": ["all", None]},
+                   mutation={"tagName": "mutation", "children": [], "hasnext": "false"})
+    sb3.replace_block("Bola", body, say, stop)
 
 
-def build_pong_inicio() -> Project:
-    project, raquete1, raquete2, bola = _pong_scene()
+def patch_speed_up(sb3: Sb3File) -> None:
+    """`+1` to vx after the Raquete1 bounce, `-1` after the Raquete2 one."""
+    for paddle, delta in (("Raquete1", 1), ("Raquete2", -1)):
+        hit = sb3.find("Bola", "control_if", touches=paddle)
+        flip = sb3.find_in("Bola", hit, "data_setvariableto", var="vx", flip=True)
+        follow = sb3.block("Bola", flip)["next"]
+        if follow is not None and sb3.block("Bola", follow)["opcode"] == "data_changevariableby" \
+                and sb3.block("Bola", follow)["fields"]["VARIABLE"][0] == "vx":
+            continue
+        sb3.insert_after("Bola", flip, sb3.new(
+            "Bola", "data_changevariableby", {"VALUE": i_num(delta)},
+            {"VARIABLE": sb3.block("Bola", flip)["fields"]["VARIABLE"]}))
 
-    vx = project.global_var("vx", 0)
-    vy = project.global_var("vy", 0)
-    project.monitor(vx, x=5, y=5)
-    project.monitor(vy, x=5, y=40)
 
-    _paddle(raquete1, -200, "w", "s")
-    _paddle(raquete2, 200, "up arrow", "down arrow")
-
-    bola.script(40, 40,
-        bola.hat("event_whenflagclicked"),
-        bola.go_to(0, 0),
-        bola.set_var(vx, bola.text(5)),
-        bola.set_var(vy, bola.plug_num(bola.op("operator_random", FROM=i_num(2), TO=i_num(4)))),
-        bola.forever(
-            bola.add("motion_changexby", {"DX": bola.plug_num(bola.rep_var(vx))}),
-            bola.add("motion_changeyby", {"DY": bola.plug_num(bola.rep_var(vy))}),
-            # bounce off the top and bottom walls
-            bola.if_(bola.op("operator_gt",
-                             OPERAND1=bola.plug_num(bola.op("motion_yposition")),
-                             OPERAND2=i_num(174)),
-                     bola.set_var(vy, _neg(bola, vy))),
-            bola.if_(bola.op("operator_lt",
-                             OPERAND1=bola.plug_num(bola.op("motion_yposition")),
-                             OPERAND2=i_num(-174)),
-                     bola.set_var(vy, _neg(bola, vy))),
-            # bounce off the left and right walls
-            bola.if_(bola.op("operator_gt",
-                             OPERAND1=bola.plug_num(bola.op("motion_xposition")),
-                             OPERAND2=i_num(234)),
-                     bola.set_var(vx, _neg(bola, vx))),
-            bola.if_(bola.op("operator_lt",
-                             OPERAND1=bola.plug_num(bola.op("motion_xposition")),
-                             OPERAND2=i_num(-234)),
-                     bola.set_var(vx, _neg(bola, vx))),
-            # bounce off a paddle, only while the ball is heading towards it
-            bola.if_(bola.op("operator_and",
-                             OPERAND1=i_block(bola.touching("Raquete1")),
-                             OPERAND2=i_block(bola.op("operator_lt",
-                                                      OPERAND1=bola.plug_num(bola.rep_var(vx)),
-                                                      OPERAND2=i_num(0)))),
-                     bola.set_var(vx, _neg(bola, vx))),
-            bola.if_(bola.op("operator_and",
-                             OPERAND1=i_block(bola.touching("Raquete2")),
-                             OPERAND2=i_block(bola.op("operator_gt",
-                                                      OPERAND1=bola.plug_num(bola.rep_var(vx)),
-                                                      OPERAND2=i_num(0)))),
-                     bola.set_var(vx, _neg(bola, vx))),
-        ),
-    )
-    return project
+def build_pong_pronto(sb3: Sb3File) -> None:
+    """The finished demo: the base file plus the two steps of the meeting."""
+    patch_win_message(sb3)
+    patch_speed_up(sb3)
 
 
 # ---------------------------------------------------------------------------
@@ -1252,9 +1621,11 @@ def check_sb3(path: Path) -> list[str]:
     used_assets = set()
     for target in targets:
         for item in target.get("costumes", []) + target.get("sounds", []):
-            used_assets.add(item["md5ext"])
-            if item["md5ext"] != f"{item['assetId']}.{item['dataFormat']}":
-                problems.append(f"{target['name']}: assetId/dataFormat do not match md5ext {item['md5ext']}")
+            # TurboWarp may leave md5ext out; assetId + dataFormat still name the file
+            md5ext = item.get("md5ext", f"{item['assetId']}.{item['dataFormat']}")
+            used_assets.add(md5ext)
+            if md5ext != f"{item['assetId']}.{item['dataFormat']}":
+                problems.append(f"{target['name']}: assetId/dataFormat do not match md5ext {md5ext}")
     for md5ext in sorted(used_assets):
         if md5ext not in members:
             problems.append(f"asset {md5ext} is referenced but missing from the zip")
@@ -1420,8 +1791,13 @@ def main() -> int:
         "projetos/Aula3-PegaFrutas.sb3": build_pega_frutas,
         "demos/Aula3-PegaFrutas-pronto.sb3": build_pega_frutas_pronto,
         "projetos/Aula4-Pong.sb3": build_pong,
-        "projetos/Aula5-PongInicio.sb3": build_pong_inicio,
     }
+    # Patched from a saved file instead of drawn from scratch: (base, recipe).
+    patched = {
+        "demos/Aula5-Pong-pronto.sb3": (PONG_DEMO_BASE, build_pong_pronto),
+    }
+    # The class's own saves: committed as the teacher saved them, never rewritten.
+    verbatim = ["projetos/Aula5-PongInicio.sb3"]
 
     if not args.check:
         for filename, builder in builders.items():
@@ -1429,9 +1805,15 @@ def main() -> int:
             path = ROOT / filename
             write_sb3(path, project.to_dict(), project.assets())
             print(f"wrote {path.relative_to(ROOT)}")
+        for filename, (base, recipe) in patched.items():
+            sb3 = Sb3File(ROOT / base)
+            recipe(sb3)
+            path = ROOT / filename
+            sb3.save(path)
+            print(f"wrote {path.relative_to(ROOT)} (a partir de {base})")
 
     failed = False
-    for filename in builders:
+    for filename in [*builders, *patched, *verbatim]:
         path = ROOT / filename
         problems = check_sb3(path)
         used = opcodes_used(path)
