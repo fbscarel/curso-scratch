@@ -47,6 +47,7 @@ interface MockStudent {
 interface MockLesson {
 	number: number;
 	date: string;
+	music: boolean;
 }
 
 interface MockUpload {
@@ -329,6 +330,9 @@ const ALLOWED_EXTENSIONS = [
 	".jpeg",
 	".wav",
 	".mp3",
+	".mid",
+	".midi",
+	".h2song",
 ];
 const MAX_UPLOAD = 20 * 1024 * 1024;
 
@@ -375,6 +379,9 @@ function resetData(): void {
 	lessons = [0, 1, 2, 3].map((index) => ({
 		number: index + 1,
 		date: isoDay((index - 3) * 7),
+		// The aula of today is a music class, so the "Batidas" tile is on the
+		// home screen and the checkbox is on in Painel → Aulas.
+		music: index === 3,
 	}));
 	attendance = new Map();
 	const today = lessons.at(-1)?.number;
@@ -656,7 +663,9 @@ function publicSession(): unknown {
 	return {
 		csrf: CSRF,
 		student: student ? { id: student.id, name: student.name } : null,
-		currentLesson: lesson ? { number: lesson.number, date: lesson.date } : null,
+		currentLesson: lesson
+			? { number: lesson.number, date: lesson.date, music: lesson.music }
+			: null,
 	};
 }
 
@@ -669,6 +678,7 @@ function adminSession(): unknown {
 			? {
 					number: lesson.number,
 					date: lesson.date,
+					music: lesson.music,
 					override: override !== null,
 				}
 			: null,
@@ -679,7 +689,9 @@ function attendanceSheet(number: number): unknown {
 	const marks = attendance.get(number) ?? new Set<number>();
 	const lesson = lessons.find((l) => l.number === number);
 	return {
-		lesson: lesson ? { number: lesson.number, date: lesson.date } : null,
+		lesson: lesson
+			? { number: lesson.number, date: lesson.date, music: lesson.music }
+			: null,
 		students: students
 			.filter((student) => student.active || marks.has(student.id))
 			.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
@@ -1226,7 +1238,7 @@ function handleAdmin(
 			if (lessons.some((l) => l.number === number)) {
 				return failure(409, `Já existe uma aula com o número ${number}.`);
 			}
-			lessons = [...lessons, { number, date }];
+			lessons = [...lessons, { number, date, music: false }];
 			return empty();
 		}
 	}
@@ -1238,8 +1250,12 @@ function handleAdmin(
 		if (!found) return failure(404, "Esta aula não existe.");
 		if (method === "PATCH") {
 			const date = text(field(body, "date"));
-			if (date === "") return failure(422, "Escolha a data da aula.");
-			found.date = date;
+			const music = field(body, "music");
+			if (date === "" && typeof music !== "boolean") {
+				return failure(422, "Mande a data da aula ou a marca de música.");
+			}
+			if (date !== "") found.date = date;
+			if (typeof music === "boolean") found.music = music;
 			return empty();
 		}
 		if (method === "DELETE") {

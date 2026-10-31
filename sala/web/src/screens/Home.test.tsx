@@ -30,6 +30,17 @@ const SESSION: PublicSession = {
 	currentLesson: null,
 };
 
+/** A music aula: the "Batidas" tile is on the home screen for it alone. */
+const MUSIC_SESSION: PublicSession = {
+	...SESSION,
+	currentLesson: { number: 7, date: "2026-11-03", music: true },
+};
+
+const PLAIN_SESSION: PublicSession = {
+	...SESSION,
+	currentLesson: { number: 5, date: "2026-10-30", music: false },
+};
+
 function jsonResponse(status: number, body: unknown): Response {
 	return new Response(JSON.stringify(body), {
 		status,
@@ -101,6 +112,32 @@ describe("the home screen's tiles", () => {
 
 		const tile = await screen.findByRole("link", { name: /Jogos/ });
 		expect(tile.getAttribute("href")).toBe("/jogo");
+	});
+
+	describe("a aula de música", () => {
+		it("shows the Batidas tile while the aula is a music class", async () => {
+			serve({ mode: "single", games: [ENDURO] });
+			render(<Home session={MUSIC_SESSION} />);
+
+			const tile = await screen.findByRole("link", { name: /Batidas/ });
+
+			// A page outside the application, opened by a plain link: the SPA
+			// has no route for it.
+			expect(tile.getAttribute("href")).toBe("/batidas/");
+			// Independent of the game of the day: Aula 6 has both.
+			expect(screen.getByRole("link", { name: /Enduro/ })).toBeTruthy();
+		});
+
+		it("shows no Batidas tile when the aula is not a music class", async () => {
+			serve({ mode: "single", games: [ENDURO] });
+			render(<Home session={PLAIN_SESSION} />);
+
+			await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+			await act(async () => {});
+			expect(screen.getByText("Entregar trabalho")).toBeTruthy();
+			expect(screen.queryByText("Batidas")).toBeNull();
+			expect(document.querySelector('a[href="/batidas/"]')).toBeNull();
+		});
 	});
 
 	describe("o projeto da aula", () => {

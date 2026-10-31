@@ -15,8 +15,8 @@ import { Scores } from "@/screens/admin/Scores";
 const BASE = "/professor-kqzt";
 
 const LESSONS: Lesson[] = [
-	{ number: 3, date: "2026-09-23" },
-	{ number: 4, date: "2026-09-30" },
+	{ number: 3, date: "2026-09-23", music: false },
+	{ number: 4, date: "2026-09-30", music: false },
 ];
 
 const GAMES: AdminGame[] = [

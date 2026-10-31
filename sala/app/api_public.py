@@ -39,10 +39,18 @@ def current_student(connection: sqlite3.Connection) -> sqlite3.Row | None:
 
 
 def lesson_payload(lesson: sqlite3.Row | None) -> dict | None:
-    """`{number, date}` for the SPA, or None when no lesson has started."""
+    """`{number, date, music}` for the SPA, or None when no lesson has started.
+
+    `music` is what puts the "Batidas" tile on the kids' home: the teacher marks
+    a music class in the panel, and the tile is there for that aula alone.
+    """
     if lesson is None:
         return None
-    return {"number": lesson["number"], "date": lesson["date"]}
+    return {
+        "number": lesson["number"],
+        "date": lesson["date"],
+        "music": bool(lesson["music"]),
+    }
 
 
 def _active_student(connection: sqlite3.Connection, student_id: int) -> sqlite3.Row | None:
@@ -131,6 +139,8 @@ def upload_create() -> Response:
             stream=file.stream,
         )
     except uploads.EmptyUpload as error:
+        raise auth.ApiError(422, str(error)) from error
+    except uploads.BadContent as error:
         raise auth.ApiError(422, str(error)) from error
     except uploads.UploadTooLarge as error:
         raise auth.ApiError(413, str(error)) from error

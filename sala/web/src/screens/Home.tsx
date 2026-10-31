@@ -1,6 +1,7 @@
 import {
 	CalendarDays,
 	Cat,
+	Drum,
 	FileText,
 	FolderOpen,
 	Gamepad2,
@@ -33,6 +34,11 @@ import { useAsync } from "@/lib/useAsync";
  * stands in its place: a card for a game that does not exist would teach a kid
  * that the screen lies. While the answer is still coming the tile is not shown
  * either, because one that guessed would be wrong half the time.
+ *
+ * The Batidas tile is the music class's tool, and it answers to the aula and
+ * not to the games: a music aula can have a game of the day as well. It is a
+ * plain link to a page outside this application (`/batidas/`), so the click is
+ * a navigation the SPA does not route -- like the projeto's download.
  */
 export function Home({ session }: { session: PublicSession }) {
 	const lesson = session.currentLesson;
@@ -107,6 +113,19 @@ export function Home({ session }: { session: PublicSession }) {
 							description="Vá jogar!"
 							icon={<Gamepad2 className="size-9" />}
 							color="control"
+						/>
+					)}
+					{/* The music class has its own tool, and it is not a mode of the
+					    games: in Aula 6 Super Mario Bros. is the game of the day and
+					    the drum machine is still there, which is why this tile reads
+					    the aula and not the game. */}
+					{lesson?.music && (
+						<FileTile
+							href="/batidas/"
+							title="Batidas"
+							description="Monte uma batida"
+							icon={<Drum className="size-9" />}
+							color="sound"
 						/>
 					)}
 					<FeatureTile

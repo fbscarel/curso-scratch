@@ -77,7 +77,7 @@ def _student_payload(row: sqlite3.Row) -> dict:
 
 
 def _lesson_payload(row: sqlite3.Row) -> dict:
-    return {"number": row["number"], "date": row["date"]}
+    return {"number": row["number"], "date": row["date"], "music": bool(row["music"])}
 
 
 def _student_name(data: dict) -> str:
@@ -142,6 +142,7 @@ def session_info() -> Response:
         payload = {
             "number": lesson["number"],
             "date": lesson["date"],
+            "music": bool(lesson["music"]),
             "override": lesson_override(connection) is not None,
         }
     return jsonify(admin=auth.admin_logged_in(), csrf=auth.csrf_token(), currentLesson=payload)
@@ -251,18 +252,39 @@ def lesson_add() -> Response:
         connection.commit()
     except sqlite3.IntegrityError as error:
         raise auth.ApiError(409, f"A aula {number} já está cadastrada.") from error
-    return jsonify(number=number, date=day), 201
+    # The whole row, like every other lesson answer: a new aula is not a music
+    # class (`music` defaults to 0), and the screen reads it from here.
+    return jsonify(_lesson_payload(_lesson_or_404(connection, number))), 201
 
 
 @bp.patch("/lessons/<int:number>")
 @auth.admin_required
 def lesson_update(number: int) -> Response:
+    """Change a lesson's date, its music mark, or both.
+
+    Both fields are read and validated before the first UPDATE: a request the
+    API refuses with 422 leaves the row exactly as it found it.
+    """
     connection = get_db()
     _lesson_or_404(connection, number)
-    day = _lesson_date(auth.json_body(), default_today=False)
-    connection.execute("UPDATE lessons SET date = ? WHERE number = ?", (day, number))
+    data = auth.json_body()
+    day = _lesson_date(data, default_today=False) if "date" in data else None
+    music: bool | None = None
+    if "music" in data:
+        raw = data["music"]
+        if not isinstance(raw, bool):
+            raise auth.ApiError(422, "O campo 'music' precisa ser true ou false.")
+        music = raw
+    if day is None and music is None:
+        raise auth.ApiError(422, "Mande a data da aula ou a marca de música.")
+    if day is not None:
+        connection.execute("UPDATE lessons SET date = ? WHERE number = ?", (day, number))
+    if music is not None:
+        connection.execute(
+            "UPDATE lessons SET music = ? WHERE number = ?", (1 if music else 0, number)
+        )
     connection.commit()
-    return jsonify(number=number, date=day)
+    return jsonify(_lesson_payload(_lesson_or_404(connection, number)))
 
 
 @bp.delete("/lessons/<int:number>")

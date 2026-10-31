@@ -42,7 +42,12 @@ def test_admin_session_reports_the_current_lesson_and_the_override(admin_client,
 
     body = admin_client.get(f"{admin_api}/session").get_json()
     assert body["admin"] is True
-    assert body["currentLesson"] == {"number": 1, "date": "2026-09-01", "override": True}
+    assert body["currentLesson"] == {
+        "number": 1,
+        "date": "2026-09-01",
+        "music": False,
+        "override": True,
+    }
 
 
 def test_login_with_the_right_password(client, csrf_of, admin_api, password):
@@ -279,8 +284,8 @@ def test_lessons_are_sorted_by_number(admin_client, admin_api, add_lesson):
     add_lesson(1, "2026-09-01")
 
     assert admin_client.get(f"{admin_api}/lessons").get_json() == [
-        {"number": 1, "date": "2026-09-01"},
-        {"number": 2, "date": "2026-09-20"},
+        {"number": 1, "date": "2026-09-01", "music": False},
+        {"number": 2, "date": "2026-09-20", "music": False},
     ]
 
 
@@ -292,8 +297,10 @@ def test_lesson_add_defaults_the_date_to_today(admin_client, admin_api, csrf_of)
     )
 
     assert response.status_code == 201
-    assert response.get_json() == {"number": 3, "date": "2026-09-29"}
-    assert admin_client.get(f"{admin_api}/lessons").get_json() == [{"number": 3, "date": "2026-09-29"}]
+    assert response.get_json() == {"number": 3, "date": "2026-09-29", "music": False}
+    assert admin_client.get(f"{admin_api}/lessons").get_json() == [
+        {"number": 3, "date": "2026-09-29", "music": False}
+    ]
 
 
 def test_lesson_add_with_a_date(admin_client, admin_api, csrf_of):
@@ -304,7 +311,7 @@ def test_lesson_add_with_a_date(admin_client, admin_api, csrf_of):
     )
 
     assert response.status_code == 201
-    assert response.get_json() == {"number": 4, "date": "2026-10-05"}
+    assert response.get_json() == {"number": 4, "date": "2026-10-05", "music": False}
 
 
 def test_lesson_add_refuses_a_duplicate_number(admin_client, admin_api, csrf_of, add_lesson):
@@ -350,7 +357,7 @@ def test_lesson_patch_changes_the_date(admin_client, admin_api, csrf_of, add_les
     )
 
     assert response.status_code == 200
-    assert response.get_json() == {"number": 1, "date": "2026-10-05"}
+    assert response.get_json() == {"number": 1, "date": "2026-10-05", "music": False}
 
 
 @pytest.mark.parametrize("payload", [{"date": "29/09/2026"}, {"date": "2026-02-30"}, {}, {"date": None}, {"date": ""}])
@@ -364,7 +371,64 @@ def test_lesson_patch_needs_a_good_date(admin_client, admin_api, csrf_of, add_le
     )
 
     assert response.status_code == 422
-    assert admin_client.get(f"{admin_api}/lessons").get_json() == [{"number": 1, "date": "2026-09-01"}]
+    assert admin_client.get(f"{admin_api}/lessons").get_json() == [
+        {"number": 1, "date": "2026-09-01", "music": False}
+    ]
+
+
+def test_lesson_patch_marks_a_music_class_without_touching_the_date(
+    admin_client, admin_api, csrf_of, add_lesson
+):
+    add_lesson(1, "2026-09-01")
+    token = csrf_of(admin_client, f"{admin_api}/session")
+
+    response = admin_client.patch(
+        f"{admin_api}/lessons/1", json={"music": True}, headers={CSRF_HEADER: token}
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"number": 1, "date": "2026-09-01", "music": True}
+    assert admin_client.get("/api/session").get_json()["currentLesson"]["music"] is True
+
+    response = admin_client.patch(
+        f"{admin_api}/lessons/1", json={"music": False}, headers={CSRF_HEADER: token}
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["music"] is False
+
+
+def test_lesson_patch_changes_the_date_and_the_music_mark_together(
+    admin_client, admin_api, csrf_of, add_lesson
+):
+    add_lesson(1, "2026-09-01")
+
+    response = admin_client.patch(
+        f"{admin_api}/lessons/1",
+        json={"date": "2026-10-05", "music": True},
+        headers={CSRF_HEADER: csrf_of(admin_client, f"{admin_api}/session")},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"number": 1, "date": "2026-10-05", "music": True}
+
+
+@pytest.mark.parametrize("music", ["true", 1, None, "sim"])
+def test_lesson_patch_refuses_a_music_mark_that_is_not_boolean(
+    admin_client, admin_api, csrf_of, add_lesson, music
+):
+    add_lesson(1, "2026-09-01")
+
+    response = admin_client.patch(
+        f"{admin_api}/lessons/1",
+        json={"music": music},
+        headers={CSRF_HEADER: csrf_of(admin_client, f"{admin_api}/session")},
+    )
+
+    assert response.status_code == 422
+    assert admin_client.get(f"{admin_api}/lessons").get_json() == [
+        {"number": 1, "date": "2026-09-01", "music": False}
+    ]
 
 
 def test_lesson_patch_of_an_unknown_lesson_is_404(admin_client, admin_api, csrf_of):
@@ -398,7 +462,9 @@ def test_lesson_delete_refuses_one_with_attendance(
     )
 
     assert response.status_code == 409
-    assert admin_client.get(f"{admin_api}/lessons").get_json() == [{"number": 1, "date": "2026-09-01"}]
+    assert admin_client.get(f"{admin_api}/lessons").get_json() == [
+        {"number": 1, "date": "2026-09-01", "music": False}
+    ]
 
 
 def test_lesson_delete_refuses_one_with_entregas(
@@ -412,7 +478,9 @@ def test_lesson_delete_refuses_one_with_entregas(
     )
 
     assert response.status_code == 409
-    assert admin_client.get(f"{admin_api}/lessons").get_json() == [{"number": 1, "date": "2026-09-01"}]
+    assert admin_client.get(f"{admin_api}/lessons").get_json() == [
+        {"number": 1, "date": "2026-09-01", "music": False}
+    ]
 
 
 # --- current lesson override -----------------------------------------------
@@ -433,10 +501,12 @@ def test_override_wins_over_the_date_and_can_be_cleared(admin_client, admin_api,
     assert admin_client.get("/api/session").get_json()["currentLesson"] == {
         "number": 1,
         "date": "2026-09-01",
+        "music": False,
     }
     assert admin_client.get(f"{admin_api}/session").get_json()["currentLesson"] == {
         "number": 1,
         "date": "2026-09-01",
+        "music": False,
         "override": True,
     }
 
@@ -446,10 +516,12 @@ def test_override_wins_over_the_date_and_can_be_cleared(admin_client, admin_api,
     assert admin_client.get("/api/session").get_json()["currentLesson"] == {
         "number": 2,
         "date": "2026-09-20",
+        "music": False,
     }
     assert admin_client.get(f"{admin_api}/session").get_json()["currentLesson"] == {
         "number": 2,
         "date": "2026-09-20",
+        "music": False,
         "override": False,
     }
 
@@ -498,7 +570,7 @@ def test_attendance_round_trip_with_an_inactive_student_present(
     assert response.status_code == 204
 
     body = admin_client.get(f"{admin_api}/attendance/1").get_json()
-    assert body["lesson"] == {"number": 1, "date": "2026-09-01"}
+    assert body["lesson"] == {"number": 1, "date": "2026-09-01", "music": False}
     assert [(student["name"], student["present"]) for student in body["students"]] == [
         ("Ana Teste", True),
         ("Bruno Teste", True),

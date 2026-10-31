@@ -105,3 +105,58 @@ def test_a_zip_segment_is_never_a_path(name):
 )
 def test_the_student_folder_slug(name, expected):
     assert uploads.slugify(name) == expected
+
+
+# --- the bytes of the song files -------------------------------------------
+
+MIDI_HEADER = b"MThd\x00\x00\x00\x06\x00\x00\x00\x01\x00\x60"
+HYDROGEN_SONG = b'<?xml version="1.0" encoding="UTF-8"?>\n<song version="1.2"/>\n'
+
+
+@pytest.mark.parametrize("extension", uploads.MIDI_EXTENSIONS)
+def test_a_midi_starts_with_its_magic(extension):
+    assert uploads.content_matches(extension, MIDI_HEADER)
+    assert not uploads.content_matches(extension, b"MTh")
+    assert not uploads.content_matches(extension, b"RIFFxxxxRMID")
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        HYDROGEN_SONG,
+        b'\xef\xbb\xbf<?xml version="1.0" encoding="UTF-8"?>\n<song/>',
+        b'  \n<?xml version="1.0"?>\n<!-- salvo pelo Hydrogen -->\n<song version="1.2"/>',
+        b'<?xml version="1.0"?><!DOCTYPE song>\n<song/>',
+    ],
+)
+def test_a_hydrogen_song_is_the_song_root(head):
+    assert uploads.content_matches(uploads.HYDROGEN_EXTENSION, head)
+
+
+@pytest.mark.parametrize(
+    "head",
+    [b"", b"<outra/>", b'<?xml version="1.0"?>\n<drumkit/>', b"PK\x03\x04\x14\x00"],
+)
+def test_another_xml_is_not_a_hydrogen_song(head):
+    assert not uploads.content_matches(uploads.HYDROGEN_EXTENSION, head)
+
+
+@pytest.mark.parametrize("extension", [".sb3", ".png", ".mp3", ".wav"])
+def test_the_other_types_are_taken_on_their_name(extension):
+    # Only the song files have a shape to check; a project is a zip TurboWarp
+    # itself refuses when it is wrong.
+    assert uploads.content_matches(extension, b"qualquer coisa")
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("musica.mid", "audio/midi"),
+        ("Musica.MIDI", "audio/midi"),
+        ("batida.h2song", "application/x-hydrogen-song"),
+        ("jogo.sb3", "application/octet-stream"),
+        ("foto.png", "application/octet-stream"),
+    ],
+)
+def test_the_download_type_follows_the_extension(name, expected):
+    assert uploads.content_type(name) == expected

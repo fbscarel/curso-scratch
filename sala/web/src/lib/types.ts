@@ -21,16 +21,23 @@ export interface AdminStudent extends Student {
 	active: boolean;
 }
 
-/** One numbered class session. `date` is an ISO `YYYY-MM-DD` day. */
+/**
+ * One numbered class session. `date` is an ISO `YYYY-MM-DD` day.
+ *
+ * `music` marks a music class: the kids' home then shows the "Batidas" tile
+ * while that aula is the current one, whether or not there is a game of the day.
+ */
 export interface Lesson {
 	number: number;
 	date: string;
+	music: boolean;
 }
 
 /** The current lesson, as the public API reports it. */
 export interface CurrentLesson {
 	number: number;
 	date: string;
+	music: boolean;
 }
 
 /** The current lesson as the admin API reports it, with the override flag. */

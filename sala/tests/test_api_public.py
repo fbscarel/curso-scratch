@@ -50,7 +50,23 @@ def test_session_reports_the_current_lesson(client, add_lesson):
     add_lesson(2, "2026-09-20")
     add_lesson(3, "2026-10-02")
 
-    assert client.get(SESSION).get_json()["currentLesson"] == {"number": 2, "date": "2026-09-20"}
+    assert client.get(SESSION).get_json()["currentLesson"] == {
+        "number": 2,
+        "date": "2026-09-20",
+        "music": False,
+    }
+
+
+def test_session_says_when_the_current_lesson_is_a_music_class(client, db, add_lesson, set_override):
+    # The "Batidas" tile follows this flag: the aula the teacher marked, and no
+    # other.
+    add_lesson(6, "2026-10-30")
+    add_lesson(7, "2026-11-03")
+    set_override(6)
+    db.execute("UPDATE lessons SET music = 1 WHERE number = 6")
+    db.commit()
+
+    assert client.get(SESSION).get_json()["currentLesson"]["music"] is True
 
 
 def test_identity_put_remembers_the_student(client, csrf_of, add_student):

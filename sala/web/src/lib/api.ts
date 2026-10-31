@@ -666,10 +666,19 @@ export function createLesson(body: {
 	return mutate(adminPath("/lessons"), { method: "POST", body });
 }
 
-export function updateLesson(number: number, date: string): Promise<void> {
+/**
+ * updateLesson changes a lesson's date, its music mark, or both.
+ *
+ * The fields sent are the fields changed: a request that only flips `music`
+ * must not rewrite the date from a copy the screen loaded earlier.
+ */
+export function updateLesson(
+	number: number,
+	patch: { date?: string; music?: boolean },
+): Promise<void> {
 	return mutate(adminPath(`/lessons/${number}`), {
 		method: "PATCH",
-		body: { date },
+		body: patch,
 	});
 }
 

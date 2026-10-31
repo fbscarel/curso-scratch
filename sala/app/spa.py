@@ -26,6 +26,7 @@ from werkzeug.exceptions import NotFound
 
 from . import auth
 from .emulator_page import EMULADOR_PREFIX
+from .groovie_page import is_groovie_path
 from .sheets import FOLHAS_PREFIX
 
 bp = Blueprint("spa", __name__)
@@ -128,6 +129,10 @@ def fallback(path: str) -> Response:
         # `/emulador/play`, `/emulador/play.js` and `/emulador/data/*` are
         # `emulator_page.bp`; any other path under `/emulador/` is a typo, and
         # the emulator's iframe must never be handed the SPA shell.
+        abort(404)
+    if is_groovie_path(url):
+        # `/batidas/` and its files are `groovie_page.bp`; the page is a document
+        # of its own and must never be handed the SPA shell either.
         abort(404)
     if path == INDEX_FILENAME:
         # `index.html` is the index by name as well as by `/`: it must not be a

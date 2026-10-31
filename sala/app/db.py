@@ -68,6 +68,10 @@ MIGRATIONS: tuple[str, ...] = (
         created_at TEXT NOT NULL
     );
     """,
+    # 7 — a music class: the kids' home shows the "Batidas" tile that aula
+    """
+    ALTER TABLE lessons ADD COLUMN music INTEGER NOT NULL DEFAULT 0;
+    """,
 )
 
 SETTING_LESSON_OVERRIDE = "lesson_override"

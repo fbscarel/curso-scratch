@@ -21,6 +21,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -61,6 +62,11 @@ import { useAsync } from "@/lib/useAsync";
  *
  * The number defaults to one past the highest registered -- the common case is
  * adding the next class -- and the date defaults to today.
+ *
+ * The "Batidas (Groovie)" box marks a music class: while that aula is the
+ * current one, the kids' home shows the tile that opens the drum machine. It is
+ * a property of the aula, not a mode of the server, so it follows the calendar
+ * and needs no second switch on the day.
  */
 export function Lessons() {
 	const lessons = useAsync<Lesson[]>(
@@ -107,9 +113,21 @@ export function Lessons() {
 		const target = editing;
 		if (target === null) return;
 		await action.run(async () => {
-			await updateLesson(target.number, editedDate);
+			await updateLesson(target.number, { date: editedDate });
 			setEditing(null);
 			toast.success("Data atualizada.");
+			lessons.reload();
+		});
+	}
+
+	async function toggleMusic(lesson: Lesson, music: boolean) {
+		await action.run(async () => {
+			await updateLesson(lesson.number, { music });
+			toast.success(
+				music
+					? `Batidas ligadas na aula ${lesson.number}.`
+					: `Batidas desligadas na aula ${lesson.number}.`,
+			);
 			lessons.reload();
 		});
 	}
@@ -220,6 +238,7 @@ export function Lessons() {
 								<TableRow>
 									<TableHead>Aula</TableHead>
 									<TableHead>Data</TableHead>
+									<TableHead>Música</TableHead>
 									<TableHead className="text-right">Ações</TableHead>
 								</TableRow>
 							</TableHeader>
@@ -234,6 +253,23 @@ export function Lessons() {
 											<span className="ml-2 text-muted-foreground">
 												({formatLongDate(lesson.date)})
 											</span>
+										</TableCell>
+										<TableCell>
+											<label
+												htmlFor={`batidas-aula-${lesson.number}`}
+												className="flex items-center gap-2 text-sm"
+											>
+												<Checkbox
+													id={`batidas-aula-${lesson.number}`}
+													checked={lesson.music}
+													disabled={action.busy}
+													onCheckedChange={(checked) => {
+														void toggleMusic(lesson, checked === true);
+													}}
+													aria-label={`Batidas (Groovie) na aula ${lesson.number}`}
+												/>
+												Batidas (Groovie)
+											</label>
 										</TableCell>
 										<TableCell>
 											<div className="flex flex-wrap justify-end gap-2">

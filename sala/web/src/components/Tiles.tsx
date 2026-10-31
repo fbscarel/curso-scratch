@@ -43,13 +43,14 @@ export function FeatureTile({
 
 /**
  * FileTile is the tile that leaves the application: a plain link to a file the
- * server hands out.
+ * server hands out, or to a page of its own that the SPA does not route.
  *
- * A plain `href` and not the client router, because the click is a download:
- * the router would turn it into a request this page makes and reads, and the
- * file would never reach the kid's disk -- nor the application the system
- * registered for its type. No `download` attribute either: it is the server's
- * `Content-Disposition` that decides whether the file is saved or opened.
+ * A plain `href` and not the client router, because the click is a download or
+ * another document: the router would turn it into a request this page makes and
+ * reads, and the file would never reach the kid's disk -- nor the application
+ * the system registered for its type. No `download` attribute either: it is the
+ * server's `Content-Disposition` that decides whether the file is saved or
+ * opened.
  */
 export function FileTile({
 	href,

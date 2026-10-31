@@ -26,7 +26,19 @@ from flask import Response, current_app, send_file
 from .auth import ApiError
 
 AULAS_DIRNAME = "aulas"
-ALLOWED_EXTENSIONS = (".sb3", ".sprite3", ".png", ".jpg", ".jpeg", ".wav", ".mp3")
+ALLOWED_EXTENSIONS = (
+    ".sb3",
+    ".sprite3",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".wav",
+    ".mp3",
+    # The editable song files of the music classes (Aulas 6 and 7).
+    ".mid",
+    ".midi",
+    ".h2song",
+)
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 # The multipart framing (boundaries, part headers) rides on top of the file
 # itself, so the body limit Flask enforces is the file limit plus a little.
@@ -50,6 +62,36 @@ TOO_LARGE_MESSAGE = f"Arquivo grande demais: o limite é {MAX_UPLOAD_BYTES // (1
 BAD_TYPE_MESSAGE = "Tipo de arquivo não aceito. Pode enviar: " + ", ".join(ALLOWED_EXTENSIONS) + "."
 NOT_FOUND_MESSAGE = "Não encontrei esse arquivo."
 
+# The song files are the only ones whose bytes are checked: a `.sb3` is a zip
+# that TurboWarp itself refuses when it is wrong, but a `.mid` that is not a
+# MIDI would only fail much later, in the kid's next class.
+MIDI_EXTENSIONS = (".mid", ".midi")
+HYDROGEN_EXTENSION = ".h2song"
+MIDI_MAGIC = b"MThd"
+# Hydrogen writes the song as plain UTF-8 XML whose root element is `<song>`
+# (its `XMLDoc::write` has no compression step). The root can only be that far
+# into the file when it carries a long XML declaration, a comment and a doctype.
+CONTENT_HEAD_BYTES = 8192
+HYDROGEN_ROOT = "song"
+CHECKED_EXTENSIONS = (*MIDI_EXTENSIONS, HYDROGEN_EXTENSION)
+BAD_CONTENT_MESSAGES = {
+    ".mid": "Esse arquivo não é um MIDI (.mid). Salve de novo no Compositor e entregue o .midi.",
+    ".midi": "Esse arquivo não é um MIDI (.midi). Salve de novo no Compositor e entregue o .midi.",
+    ".h2song": (
+        "Esse arquivo não é uma música do Hydrogen (.h2song)."
+        " Salve de novo no Hydrogen e entregue o .h2song."
+    ),
+}
+# What a download is labelled as. Everything else keeps the octet-stream the
+# kids' entregas have always had; a song gets its own type so Firefox saves it
+# with the name (and the extension) the server sent.
+CONTENT_TYPES = {
+    ".mid": "audio/midi",
+    ".midi": "audio/midi",
+    ".h2song": "application/x-hydrogen-song",
+}
+DEFAULT_CONTENT_TYPE = "application/octet-stream"
+
 
 class EmptyUpload(Exception):
     """The uploaded file has no bytes; the API answers 422."""
@@ -57,6 +99,10 @@ class EmptyUpload(Exception):
 
 class UploadTooLarge(Exception):
     """The uploaded file is over the limit; the API answers 413."""
+
+
+class BadContent(Exception):
+    """The uploaded file is not what its extension says; the API answers 422."""
 
 
 def aulas_root(data_dir: Path) -> Path:
@@ -107,6 +153,59 @@ def allowed_extension(filename: str) -> str | None:
     """The lower-case extension of `filename` when it is one we accept, else None."""
     suffix = Path(filename).suffix.lower()
     return suffix if suffix in ALLOWED_EXTENSIONS else None
+
+
+def content_type(filename: str) -> str:
+    """The MIME a download of `filename` is labelled as."""
+    return CONTENT_TYPES.get(Path(filename).suffix.lower(), DEFAULT_CONTENT_TYPE)
+
+
+def _xml_root_name(head: bytes) -> str | None:
+    """The first element name of an XML document, read from its first bytes."""
+    text = head.decode("utf-8", "replace").lstrip("\ufeff \t\r\n")
+    index = 0
+    while True:
+        if text.startswith("<?", index):
+            end = text.find("?>", index)
+            index = end + 2 if end >= 0 else -1
+        elif text.startswith("<!--", index):
+            end = text.find("-->", index)
+            index = end + 3 if end >= 0 else -1
+        elif text.startswith("<!", index):
+            end = text.find(">", index)
+            index = end + 1 if end >= 0 else -1
+        else:
+            break
+        if index < 0:
+            return None
+        while index < len(text) and text[index].isspace():
+            index += 1
+    match = re.match(r"<([A-Za-z_][\w.:-]*)", text[index:])
+    return match.group(1) if match else None
+
+
+def content_matches(extension: str, head: bytes) -> bool:
+    """True when the first bytes of a file are what `extension` promises.
+
+    Only the song files have a shape to check; every other accepted type is
+    taken on its name alone.
+    """
+    if extension in MIDI_EXTENSIONS:
+        return head[:4] == MIDI_MAGIC
+    if extension == HYDROGEN_EXTENSION:
+        return _xml_root_name(head) == HYDROGEN_ROOT
+    return True
+
+
+def check_content(filename: str, path: Path) -> None:
+    """Raise `BadContent` when the file's bytes do not match its extension."""
+    extension = Path(filename).suffix.lower()
+    if extension not in CHECKED_EXTENSIONS:
+        return
+    with path.open("rb") as handle:
+        head = handle.read(CONTENT_HEAD_BYTES)
+    if not content_matches(extension, head):
+        raise BadContent(BAD_CONTENT_MESSAGES[extension])
 
 
 def _fit_bytes(text: str, limit: int) -> str:
@@ -299,7 +398,8 @@ def save_upload(
     `moment` is the same instant the row's `createdAt` is stamped with, so the
     file name and the row can never disagree about when it was handed in. An
     empty file raises `EmptyUpload` and one over `MAX_UPLOAD_BYTES` raises
-    `UploadTooLarge` — both before anything is left behind in the folder.
+    `UploadTooLarge`; a song file whose bytes are not what its extension says
+    raises `BadContent` — all three before anything is left behind in the folder.
     """
     directory = student_dir(data_dir, lesson_number, student_id, student_name)
     # Before the folder is even created: a symlinked `aulas/aula-NN` must not
@@ -314,6 +414,7 @@ def save_upload(
         temp.unlink(missing_ok=True)
         raise UploadTooLarge(TOO_LARGE_MESSAGE)
     try:
+        check_content(original_name, temp)
         target = _place(directory, name, temp)
     except BaseException:
         temp.unlink(missing_ok=True)
@@ -463,7 +564,7 @@ def send_upload(data_dir: Path, row: sqlite3.Row) -> Response:
         path,
         as_attachment=True,
         download_name=row["original_name"],
-        mimetype="application/octet-stream",
+        mimetype=content_type(row["original_name"]),
     )
 
 

@@ -20,6 +20,16 @@ MY_UPLOADS = "/api/my-uploads"
 # The name every upload is stamped with: `SALA_NOW` pins the moment (conftest).
 STAMP = "2026-09-29 14h32"
 
+# The song files are checked on their bytes, so a test that uploads one has to
+# send what the tool really writes.
+MIDI_SONG = b"MThd\x00\x00\x00\x06\x00\x00\x00\x01\x00\x60"
+HYDROGEN_SONG = b'<?xml version="1.0" encoding="UTF-8"?>\n<song version="1.2"/>\n'
+VALID_CONTENT = {
+    ".mid": MIDI_SONG,
+    ".midi": MIDI_SONG,
+    ".h2song": HYDROGEN_SONG,
+}
+
 
 def stored_files(data_dir):
     """Every file the app has stored under `<data>/aulas/`."""
@@ -82,7 +92,9 @@ def test_every_allowed_type_is_accepted(client, add_student, add_lesson, as_stud
     add_lesson(1, "2026-09-01")
     token = as_student(client, add_student("Ana Teste"))
 
-    assert upload_file(client, token, f"trabalho{extension}", b"abc").status_code == 201
+    content = VALID_CONTENT.get(extension, b"abc")
+
+    assert upload_file(client, token, f"trabalho{extension}", content).status_code == 201
 
 
 @pytest.mark.parametrize("name", ["trabalho.SB3", "foto.JPEG", "som.MP3"])
@@ -519,3 +531,62 @@ def test_a_move_that_fails_leaves_no_empty_file_taking_the_name(
 
     assert upload_file(client, token, "jogo.sb3", b"abc").status_code == 201
     assert [path.name for path in stored_files(data_dir)] == [f"{STAMP} - jogo.sb3"]
+
+
+# --- as músicas das aulas 6 e 7 --------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("name", "content", "mimetype"),
+    [
+        ("minha-musica.mid", MIDI_SONG, "audio/midi"),
+        ("minha-musica.midi", MIDI_SONG, "audio/midi"),
+        ("batida.h2song", HYDROGEN_SONG, "application/x-hydrogen-song"),
+    ],
+)
+def test_a_song_is_listed_and_downloaded_back_byte_for_byte(
+    client, add_student, add_lesson, as_student, upload_file, name, content, mimetype
+):
+    add_lesson(1, "2026-09-01")
+    token = as_student(client, add_student("Ana Teste"))
+
+    response = upload_file(client, token, name, content)
+
+    assert response.status_code == 201, response.get_json()
+    assert response.get_json()["name"] == name
+    listing = client.get(MY_UPLOADS).get_json()
+    assert [upload["name"] for upload in listing] == [name]
+
+    download = client.get(f"{UPLOADS}/{listing[0]['id']}/download")
+
+    assert download.status_code == 200
+    assert download.data == content
+    # The right type plus the stored name is what makes Firefox save the file
+    # with its own extension (see DECISIONS: Firefox 158 + downloads).
+    assert download.mimetype == mimetype
+    assert "attachment" in download.headers["Content-Disposition"]
+    assert name in download.headers["Content-Disposition"]
+
+
+@pytest.mark.parametrize(
+    ("name", "content"),
+    [
+        ("nota.mid", b"abc"),
+        ("nota.midi", b"MTh"),
+        ("nota.mid", b"RIFF\x00\x00\x00\x00RMID"),
+        ("musica.h2song", b"<drumkit/>"),
+        ("musica.h2song", b"PK\x03\x04\x14\x00"),
+    ],
+)
+def test_a_song_file_with_the_wrong_bytes_is_422_and_leaves_nothing(
+    client, add_student, add_lesson, as_student, upload_file, data_dir, name, content
+):
+    add_lesson(1, "2026-09-01")
+    token = as_student(client, add_student("Ana Teste"))
+
+    response = upload_file(client, token, name, content)
+
+    assert response.status_code == 422
+    assert response.get_json()["error"] == uploads.BAD_CONTENT_MESSAGES[Path(name).suffix]
+    assert stored_files(data_dir) == []
+    assert client.get(MY_UPLOADS).get_json() == []

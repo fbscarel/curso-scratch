@@ -13,7 +13,7 @@ import { celebrate } from "@/lib/celebrate";
 import { cn } from "@/lib/utils";
 
 /** What the file picker offers, and what the chips below the drop zone say. */
-const ACCEPT = ".sb3,.sprite3,.png,.jpg,.jpeg,.wav,.mp3";
+const ACCEPT = ".sb3,.sprite3,.png,.jpg,.jpeg,.wav,.mp3,.mid,.midi,.h2song";
 
 /**
  * The accepted types, grouped the way a kid thinks about them.
@@ -28,6 +28,8 @@ const ALLOWED_CHIPS = [
 	"Sprite (.sprite3)",
 	"Imagem (.png, .jpg, .jpeg)",
 	"Som (.wav, .mp3)",
+	"Música (.mid, .midi)",
+	"Música do Hydrogen (.h2song)",
 ];
 
 interface UploadItem {

@@ -157,7 +157,7 @@ function FileBadge({ name }: { name: string }) {
 			</span>
 		);
 	}
-	if (["wav", "mp3"].includes(extension)) {
+	if (["wav", "mp3", "mid", "midi", "h2song"].includes(extension)) {
 		return (
 			<span className={`${chip} bg-scratch-sound`}>
 				<Music aria-hidden="true" className="size-8" />

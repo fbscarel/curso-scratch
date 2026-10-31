@@ -49,9 +49,10 @@ def test_schema_has_the_expected_columns_and_keys(db):
     assert students["active"]["notnull"] == 1 and students["active"]["dflt_value"] == "1"
 
     lessons = _columns(db, "lessons")
-    assert list(lessons) == ["number", "date"]
+    assert list(lessons) == ["number", "date", "music"]
     assert lessons["number"]["pk"] == 1
     assert lessons["date"]["notnull"] == 1
+    assert lessons["music"]["notnull"] == 1
 
     attendance = _columns(db, "attendance")
     assert list(attendance) == ["lesson_number", "student_id"]

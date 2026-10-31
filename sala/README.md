@@ -34,6 +34,7 @@ sudo pacman -S avahi nss-mdns && sudo systemctl enable --now avahi-daemon   # op
 cd sala
 just sala-config     # o caminho do painel e a senha do professor
 just sala-emulador   # baixa o EmulatorJS 4.2.3 (uma vez por máquina)
+just sala-groovie    # baixa a página de batidas (uma vez por máquina)
 just sala-capas      # baixa as capas dos jogos (uma vez por máquina)
 ```
 
@@ -81,6 +82,32 @@ Para usar uma imagem sua (ou trocar uma capa), ponha o arquivo em `sala/dados/ca
 jogo e uma destas extensões: `png`, `jpg`, `jpeg` ou `webp`. O arquivo que está lá **nunca** é
 sobrescrito: para baixar de novo, apague o seu.
 
+## As batidas (Groovie)
+
+O **Groovie** é a máquina de batidas que a turma abre pelo bloco **Batidas** da página inicial: uma
+grade de passos com 151 sons de percussão (todos CC0), padrões e uma linha do tempo para montar a
+música. Ele **não exporta áudio**: na aula, quem exporta é o Hydrogen, no pendrive do ScratchLab; o
+Groovie é o aquecimento e a exploração.
+
+`just sala-groovie` baixa uma vez os arquivos da página para `sala/vendor/groovie` (essa pasta não
+vai para o git). O que está no repositório é só o manifesto `sala/groovie.sha256`, com o sha256 de
+cada arquivo: cada arquivo é conferido antes de ser guardado, e um que não confira é descartado. O
+commit exato de onde tudo veio está em `sala/app/groovie.py` (`COMMIT`), e os arquivos são baixados
+dele — nunca de uma branch, que muda. Só os arquivos que a página carrega são baixados; o resto do
+repositório do Groovie (documentação, testes, ferramentas) fica de fora. Rodar de novo é seguro.
+
+A página roda inteira dentro do notebook: o download já tira do `main.js` o contador de visitas que
+o site original chama em um serviço de fora, e o servidor confere, a cada download e nos testes, que
+nenhum arquivo da página chama endereço de fora. A política de segurança da página (`/batidas/`)
+também não permite nada fora do próprio servidor.
+
+O bloco **Batidas** aparece para a turma enquanto a **aula atual** estiver marcada como aula de
+música em **Painel → Aulas** (a caixa **Batidas (Groovie)**). Ele não depende do jogo do dia: em uma
+aula de música pode haver jogo e batidas ao mesmo tempo. Sem um download completo e conferido
+(`just sala-groovie`), o endereço `/batidas/` mostra uma frase em português pedindo a receita, em
+vez de uma página quebrada: o servidor só serve a página depois que todos os arquivos do manifesto
+conferiram e nenhum deles chama nada fora do notebook.
+
 ## Dar a aula
 
 ```sh
@@ -101,9 +128,10 @@ ids que ele conhece e o `livre`.
 
 O que a turma encontra na página: a aula de hoje, o jogo do dia, as folhas (a ficha e os desafios
 das aulas que já começaram), "Quem sou eu?" para escolher o nome, "Entregar trabalho" e "Meus
-arquivos". O jogo abre dentro da própria página, num emulador que roda no navegador do aluno e
-carrega a ROM pelo servidor da sala. Nos fliperamas, a página já desliga o aviso de copyright em
-inglês que o emulador mostraria antes do jogo: a turma cai direto na tela do jogo.
+arquivos" — e, nas aulas de música, o bloco **Batidas**. O jogo abre dentro da própria página, num
+emulador que roda no navegador do aluno e carrega a ROM pelo servidor da sala. Nos fliperamas, a
+página já desliga o aviso de copyright em inglês que o emulador mostraria antes do jogo: a turma cai
+direto na tela do jogo.
 
 Quando você escolhe um projeto na aba **Aula atual**, a turma vê mais um bloco na página, em
 primeiro lugar: o **Projeto da aula**, com o nome do arquivo sem o `.sb3`. Um clique e o projeto abre
@@ -124,7 +152,7 @@ vivem só no `sala/dados/config.toml`.
 |---|---|
 | **Aula atual** | A aula que a turma está fazendo agora; dá para escolher outra manualmente, e escolher o projeto da aula. |
 | **Alunos** | Os nomes que aparecem em "Quem é você?". |
-| **Aulas** | O calendário do curso. A aula atual sai daqui. |
+| **Aulas** | O calendário do curso. A aula atual sai daqui, e é aqui que se marca uma aula de música (a caixa **Batidas (Groovie)**). |
 | **Presença** | Marque quem veio à aula. Só o professor marca. |
 | **Entregas** | Os trabalhos que a turma mandou; dá para baixar os de uma aula num zip. |
 | **Jogos** | O que a turma pode jogar na aula de hoje, e o que falta em cada jogo. |
@@ -299,6 +327,7 @@ pontos): um save assim nunca poderia ser confirmado.
 | `SALA_ROMS` | `/mnt/z/roms` | A pasta das ROMs. |
 | `SALA_PORTA` | `8000` | A porta do servidor (e a dos endereços do quadro). |
 | `SALA_EMULADOR` | `sala/vendor/emulatorjs/data` | Onde o EmulatorJS está instalado. |
+| `SALA_GROOVIE` | `sala/vendor/groovie` | Onde a página de batidas (Groovie) está instalada. |
 | `SALA_PDFS` | `aulas/pdf` do repositório | A pasta das folhas em PDF. |
 | `SALA_NOME` | `sala` | O nome anunciado na rede: `http://<nome>.local:<porta>`. Só minúsculas, números e hífen. |
 
@@ -322,6 +351,7 @@ O código da sala é MIT (veja [`../LICENSE`](../LICENSE)). O servidor e o site 
 | Peça | Licença | Onde |
 |---|---|---|
 | EmulatorJS 4.2.3 | GPL-3.0 | baixado pelo `just sala-emulador`, fora do repositório |
+| Groovie | MIT (código) e CC0 (os 151 sons) | baixado pelo `just sala-groovie`, fora do repositório |
 | Capas dos jogos | de quem as fez | baixadas do libretro-thumbnails pelo `just sala-capas`, fora do repositório |
 | React e React DOM | MIT | `web/node_modules/react` e `.../react-dom` |
 | shadcn/ui | MIT | os componentes copiados para `web/src/components/ui/` |
