@@ -24,6 +24,7 @@ slides, roteiros e projetos para baixar, por aula.
 # materiais das aulas
 cd aulas && just pdf      # src/*.md -> pdf/*.pdf
 cd aulas && just sb3      # tools/build_sb3.py -> projetos/*.sb3
+cd aulas && just sons     # tools/build_sons.py -> src/sons/*.mp3 (só quando os sons mudarem)
 cd aulas && just check    # confere se os PDFs em pdf/ estão atualizados
 
 # site
@@ -31,7 +32,9 @@ cd site && just build     # gera o site
 cd site && just serve     # abre o site no navegador
 ```
 
-Para isso você precisa de: `python3` (com o pacote `markdown`), `chromium`, `poppler` e `just`.
+Para isso você precisa de: `python3` (com os pacotes `markdown` e `numpy`), `chromium`, `poppler`,
+`ffmpeg` e `just`. O `ffmpeg` só é usado pelos sons (`just sons`) e pelos projetos que embutem som
+(`just sb3`).
 
 ## Servidor da sala
 
@@ -83,6 +86,19 @@ pelo nome `sala.local`, `avahi` e `nss-mdns`. O que a sala guarda fica em `sala/
       [Commons](https://commons.wikimedia.org/wiki/File:Magnavox-Odyssey-Console-Set.jpg).
     - `home-pong.jpg` — Evan-Amos, [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) —
       [Commons](https://commons.wikimedia.org/wiki/File:TeleGames-Atari-Pong.jpg).
+    - `koji-kondo.jpg` — Nico Hofmann, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) —
+      [Commons](https://commons.wikimedia.org/wiki/File:K%C5%8Dji_Kond%C5%8D_2015_(cropped).jpg).
+    - `mario-paint-caixa.jpg` — capa do Mario Paint © Nintendo, uso ilustrativo (como na Wikipédia) —
+      [Wikipédia](https://en.wikipedia.org/wiki/File:Mario_paint_box.jpg).
+    - `roland-tr-808.jpg` — fr4dd, [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) —
+      [Commons](https://commons.wikimedia.org/wiki/File:Roland_TR-808_Rhythm_Composer.jpg).
+    - `e-mu-sp-1200.jpg` — 2xUeL, domínio público —
+      [Commons](https://commons.wikimedia.org/wiki/File:E-mu_SP-1200_front_of_machine.jpg).
+  - Capturas de tela das ferramentas (`aulas/src/img/ferramentas/`): do **Compositor** (danielx.net/composer)
+    e do **Hydrogen** (GPL-2.0-or-later), tiradas por nós, uso ilustrativo — os programas não estão no
+    repositório.
+  - Os sons das Aulas 6 e 7 (`aulas/src/sons/melodia.mp3` e `batida.mp3`) são **nossos** (arranjo próprio), em
+    domínio público (CC0): a melodia de "Brilha, brilha, estrelinha" é de domínio público e a batida é nossa.
 
 Scratch é um projeto da Scratch Foundation, em colaboração com o Lifelong Kindergarten Group do MIT
 Media Lab. Curso independente, sem afiliação ao MIT ou à Scratch Foundation.

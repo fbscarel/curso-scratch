@@ -1,87 +1,119 @@
 {
   "pdfs": {
     "aula1-desafios.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "4bcef2640931356a6858a3cb5495db8e94eba4e79a13c02f081136446cb9045c"
     },
     "aula1-ficha.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "6775ad3b555535379ffe9af802a3a23fd4a9c996087fa7716192c29e40dbb646"
     },
     "aula1-roteiro.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "edab0ff20093c48c7f928aecfa7fc582d7991da7d07a7d54e55cbdb266d7c3be"
     },
     "aula1-slides.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "27b49fe8f86f4bc0323e8707e791178c1ddd3f5620449de53c5b6a183492e19b"
     },
     "aula2-desafios.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "f8e9bd068ce22b6dc957498915d4a36f1d8a898479d2fd6222f9fe601b7be24c"
     },
     "aula2-ficha.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "14583f79ba99397981b74cfb224c5f4bc4c4a5879002d0a7dbbae78aea7173cf"
     },
     "aula2-roteiro.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "c6a93b8bb432108cf53b58d61880f70740f75caf622464541baf22b2e5133d4e"
     },
     "aula2-slides.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "f354afa1daeb8164463dcb038a779be65272f0602469751d3f8acb441f07119b"
     },
     "aula3-desafios.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "add32819b46c16ea1b108c3a76cb6ad50b5d65f27b034ce11053d3829d57462f"
     },
     "aula3-ficha.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "fc53e4fdeb6594e7dec4af659219e1ab7688d18a6f8ab7c84bead878efa08e5d"
     },
     "aula3-roteiro.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "8c5538223ac126b9663f4be4efbc476a1bf1a20a62efddcb30f4677aab841b1f"
     },
     "aula3-slides.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "f65ad11d4bab2007def161c816dea78d41019e317291462d1ae8185d52136b15"
     },
     "aula4-desafios.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "2fac7558f8ee469ca53c7fab234cdd6f822eb32cab8d12a255ed23a4ca96fe70"
     },
     "aula4-ficha.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "e9e07b350193a612e88d5353ebc69490e7f6a02ab5ad97486bebe6f8a078f1fb"
     },
     "aula4-roteiro.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "197e03b969ba93ba529d02ae2c34784caea3e6ce4f9b5586b52eb202166bc69c"
     },
     "aula4-slides.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "5990972121f80c9813c8dd9b7d10e717a139994eaeaabb23cd799e2f23dc72df"
     },
     "aula5-desafios.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "6b86806d2ce0981ac0fe82d73263ac8c0a5d388637f44b077287bd5a474223d4"
     },
     "aula5-ficha.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "033f7401cfc322a596b66e6c9ffc65900e01a0f530b071cca33b1de1ecc2a6bb"
     },
     "aula5-roteiro.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "092e436b6551e4617661766adb6d9ad5e802227c3015aa953f4eb955ff74d17b"
     },
     "aula5-slides.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "6c322abe84ca80877b6f8e153ac6f70d5484419d0e72faad31a8cbbd306ac0e6"
     },
+    "aula6-desafios.pdf": {
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
+      "source": "e25c4ecccb858c650e58424abf5297330584708baf0caf708540ef897e83de96"
+    },
+    "aula6-ficha.pdf": {
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
+      "source": "278b4613e398a9eca9b0e5aa69367b8807eefa8e792e151ec0cd9d9107ddab47"
+    },
+    "aula6-roteiro.pdf": {
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
+      "source": "77bc54ad6fd663f63fc38f31e09068a9fb66bd9e93ab52eb0cbd0104a4e3110e"
+    },
+    "aula6-slides.pdf": {
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
+      "source": "6da38c472b56815a299056039c98fc641ad25a92c01b29f0a660b812fe22aa90"
+    },
+    "aula7-desafios.pdf": {
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
+      "source": "bd920963f3e4cabac951b9bd0341fadcfb274c021c9bd607654af8ff0d7284dc"
+    },
+    "aula7-ficha.pdf": {
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
+      "source": "bb68f3bc620fa9733600934b22e7f1fe5303d88f3f3d8ff8f3ae4761d45dee3b"
+    },
+    "aula7-roteiro.pdf": {
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
+      "source": "997fa47e6dd683f7db44ad8ffecbff8375f2a3bedb40e2060f1c79013878b7a6"
+    },
+    "aula7-slides.pdf": {
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
+      "source": "9c808b17624e563517fd610b18bcadbaa9bcfe73028542db192db5f6ddf5ef33"
+    },
     "bilhete-pais.pdf": {
-      "shared": "36fedc1587ff1d27cc566d5dbdf789fbe06ecc43931856a307e572381d6dbddb",
+      "shared": "7b2b8d3cf32c59c6f89064119a648d114e9b983a5eec9d0f06ad16fb3ac23d61",
       "source": "4066fa1efe6afa0782cea1f98bcc471f240d1c90819a689fc1ce5cf37b82ecb7"
     }
   }

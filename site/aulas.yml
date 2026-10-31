@@ -49,3 +49,23 @@ aulas:
       - "A bola **acelera a cada rebatida**: `adicione 1 a vx` depois da Raquete1 e `adicione -1 a vx` depois da Raquete2 — o **sinal** do vx diz para onde a bola vai."
     projeto: Aula5-PongInicio
     projeto_descricao: "Pong: o placar dos dois jogadores e o saque do meio prontos — falta a vitória aos 7 e a bola acelerando."
+  - numero: 6
+    titulo: "Melodias: o computador toca música"
+    data: 2026-11-06
+    resumo:
+      - "Jogamos o **Super Mario Bros.** na Sala e descobrimos como o console tocava música: um **chip de som** com **cinco canais**, e **Koji Kondo** escrevendo a musiquinha mais famosa dos videogames."
+      - "No teclado, as **sete notas** com os dois nomes (**dó = C** … **si = B**) e o número que diz a **oitava** (o **C4** é o dó do meio)."
+      - "Contamos a **batida** em 4/4 e montamos uma **melodia** no **Compositor** (danielx.net): **clique** na pauta põe a nota, **clique de novo** tira; **Export** sai o **MP3** e **Save to disk** a partitura (`.midi`)."
+      - "No Scratch, o MP3 entra na **Bailarina** e ela **dança na batida** com `espere (0.5) seg` — meio segundo é uma batida a 120 bpm."
+    projeto: Aula6-Melodias
+    projeto_descricao: "Melodias: o palco e a Bailarina prontos para você importar a sua música e fazer ela dançar no ritmo."
+  - numero: 7
+    titulo: "Batidas: a bateria da sua música"
+    data: 2026-11-10
+    resumo:
+      - "Abrimos o **nosso** projeto da Aula 6 em **Meus arquivos** e provamos que dá para tocar **melodia e bateria juntas** — se as duas têm o mesmo andamento, compasso e começo."
+      - "História: a caixa de ritmos **Roland TR-808** (1980) e as **amostras** (samples) do hip-hop."
+      - "No **Hydrogen**, desenhamos a batida numa **grade** (bumbo, caixa, chimbal), fizemos a **virada** num segundo padrão e enfileiramos oito compassos na **canção**."
+      - "**Projeto → Exportar Canção** (MP3) e **Salvar Como...** (`.h2song`); no Scratch, a batida entra na **Bateria** e as duas músicas começam na bandeira verde."
+    projeto: Aula7-Batidas
+    projeto_descricao: "Batidas: o palco, a Bailarina e a Bateria prontos para você importar a sua batida e tocar as duas músicas juntas."
