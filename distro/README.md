@@ -5,8 +5,13 @@ RAM e dá boot pelo pendrive nos computadores do laboratório. Ele traz:
 
 - área de trabalho **labwc** com **waybar** (tema Adwaita-Labwc);
 - **TurboWarp Desktop** — o Scratch que funciona offline, já com o gato e o som Miau no projeto novo;
-- **Firefox em português**, com restrições para a aula e o favorito **Sala** na barra de favoritos;
-- **"Entregar trabalho"** — um programa que manda o projeto do aluno para o servidor da sala;
+- **Hydrogen** — a bateria eletrônica das aulas de música (entrada **"Batidas (Hydrogen)"** no menu),
+  já em português, com o kit TR-808 e uma música-modelo de 120 BPM; cada vez que ela abre, o aluno
+  ganha uma cópia nova em `~/Músicas` (`Batidas-1.h2song`, `Batidas-2.h2song`, …);
+- **Firefox em português**, com restrições para a aula e os favoritos **Sala** e **Compositor** na
+  barra de favoritos;
+- **"Entregar trabalho"** — um programa que manda o projeto do aluno (`.sb3`) e os arquivos das aulas
+  de música (`.h2song`, `.mid`, `.midi`, `.mp3`, `.wav`) para o servidor da sala;
 - **avahi** com **nss-mdns** — é o que faz o nome `sala.local` resolver na rede;
 - teclado ABNT2 (padrão brasileiro);
 - nada é salvo no computador: ao desligar, tudo volta ao ponto de partida.
@@ -62,8 +67,9 @@ imagem já vem pronta para chegar nele:
   no quadro pode ser `http://sala.local:8000`;
 - o Firefox traz o favorito **Sala** na barra de favoritos, apontando para esse endereço — é por ali
   que a turma vê a aula de hoje, joga e abre as folhas;
-- o botão **"Entregar trabalho"** (na barra do waybar e no menu) abre uma janela que lista os projetos
-  `.sb3` salvos na pasta do aluno, os nomes da turma lidos do servidor, e manda o arquivo escolhido.
+- o botão **"Entregar trabalho"** (na barra do waybar e no menu) abre uma janela que lista os arquivos
+  salvos na pasta do aluno (`.sb3`, `.h2song`, `.mid`, `.midi`, `.mp3`, `.wav`), os nomes da turma
+  lidos do servidor, e manda o arquivo escolhido.
   Ele procura o servidor em `http://sala.local:8000`; quando não encontra, pede o endereço que o
   professor escreveu no quadro.
 - o Firefox entrega ao TurboWarp Desktop os `.sb3` que chegam como projeto do Scratch (tipo
@@ -85,6 +91,7 @@ imagem já vem pronta para chegar nele:
 | Pacotes instalados na imagem | `profile/packages.x86_64` |
 | Área de trabalho (labwc e waybar) | `profile/airootfs/etc/skel/.config/labwc/` e `.../waybar/` |
 | Firefox | `firefox/policies.json` |
+| Hydrogen (preferências, música-modelo e o atalho "Batidas") | `profile/airootfs/etc/skel/.hydrogen/`, `profile/airootfs/usr/share/scratchlab/musica/`, `profile/airootfs/usr/local/bin/batidas` |
 | "Entregar trabalho" (janela em GTK 4) | `profile/airootfs/usr/local/bin/entregar-trabalho` |
 | Menu de boot | `profile/efiboot/loader/entries/` e `profile/syslinux/syslinux.cfg` (os dois precisam ficar iguais) |
 | Contas e serviços | `profile/airootfs/usr/local/sbin/lab-setup` |

@@ -11,6 +11,17 @@ passwd -d aluno
 # Teacher (sudo via wheel) and root: password hashes staged by `just build`
 # (scripts/stage-secrets.sh); an account without a hash stays locked.
 id professor >/dev/null 2>&1 || useradd -m -G wheel -s /bin/bash professor
+
+# Songs and recordings get a visible folder of their own: Hydrogen's template
+# copy lands there, and "Entregar trabalho" finds the song files in it.
+for u in aluno professor; do
+    install -d -o "$u" -g "$(id -gn "$u")" "/home/$u/Músicas"
+    # The skel copy carries the student's absolute song paths: each account gets
+    # its own home in them, so the teacher's Hydrogen saves into his folder.
+    conf="/home/$u/.hydrogen/hydrogen.conf"
+    [ -f "$conf" ] && sed -i "s|/home/aluno/|/home/$u/|g" "$conf"
+done
+
 for u in professor root; do
     if [ -s "/root/$u.hash" ]; then
         usermod -p "$(cat "/root/$u.hash")" "$u"

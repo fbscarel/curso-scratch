@@ -146,6 +146,31 @@ def test_projetos_are_the_newest_first_without_the_class_copies(desktop, tmp_pat
     assert desktop.projetos(home, skel) == [novo, antigo, fundo]
 
 
+def test_projetos_list_the_songs_and_the_audio_too(desktop, tmp_path: Path):
+    home = tmp_path / "home"
+    skel = tmp_path / "skel" / "Aulas"
+    skel.mkdir(parents=True)
+    (skel / "aula1.sb3").write_bytes(b"aula")
+    (home / "Aulas").mkdir(parents=True)
+    (home / "Aulas" / "aula1.sb3").write_bytes(b"aula")  # a copy nobody worked on
+    song = write_project(home / "Músicas" / "Batidas-1.h2song", b"<song/>")
+    midi = write_project(home / "Músicas" / "brilha.mid", b"MThd")
+    older_midi = write_project(home / "Downloads" / "brilha.midi", b"MThd")
+    audio = write_project(home / "Músicas" / "brilha.mp3", b"ID3")
+    wave = write_project(home / "Músicas" / "brilha.wav", b"RIFF")
+    project = write_project(home / "meu-jogo.sb3")
+    write_project(home / "anotacoes.txt")
+    write_project(home / "Músicas" / ".Batidas-1.autosave.h2song", b"<song/>")
+    os.utime(project, (1_000_000, 1_000_000))
+    os.utime(song, (2_000_000, 2_000_000))
+    os.utime(midi, (3_000_000, 3_000_000))
+    os.utime(older_midi, (500_000, 500_000))
+    os.utime(audio, (4_000_000, 4_000_000))
+    os.utime(wave, (5_000_000, 5_000_000))
+
+    assert desktop.projetos(home, skel) == [wave, audio, midi, song, project, older_midi]
+
+
 def test_projetos_skip_a_file_that_vanished_before_the_sort(desktop, tmp_path: Path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
@@ -212,6 +237,32 @@ def test_identity_and_upload_land_in_the_current_lesson(
     stored = list((config.data_dir / "aulas" / "aula-03").rglob("*.sb3"))
     assert len(stored) == 1
     assert stored[0].read_bytes() == b"conteudo do projeto"
+
+
+@pytest.mark.parametrize(
+    "name, content",
+    [
+        ("brilha.mid", b"MThd\x00\x00\x00\x06\x00\x00\x00\x01\x00\x60"),
+        ("Batidas-1.h2song", b'<?xml version="1.0" encoding="UTF-8"?>\n<song version="1.2"/>\n'),
+    ],
+)
+def test_a_song_file_lands_with_the_name_the_kid_saved(
+    desktop, servidor, config: Config, add_student, add_lesson, tmp_path: Path, name: str, content: bytes
+):
+    ana = add_student("Ana Teste")
+    add_lesson(7, "2026-09-29")
+    song = write_project(tmp_path / name, content)
+
+    client = desktop.Sala(servidor)
+    client.session()
+    client.pick_student(ana)
+    answer = client.upload(song)
+
+    assert answer["lessonNumber"] == 7
+    assert answer["name"] == name
+    stored = list((config.data_dir / "aulas" / "aula-07").rglob(f"*{song.suffix}"))
+    assert len(stored) == 1
+    assert stored[0].read_bytes() == content
 
 
 def test_a_refused_type_shows_the_servers_message(desktop, servidor, add_student, add_lesson, tmp_path: Path):
@@ -323,10 +374,28 @@ def test_multipart_body_frames_the_bytes_it_was_given(desktop, tmp_path: Path):
     assert body == (
         b"--bbbbbbbb\r\n"
         b'Content-Disposition: form-data; name="file"; filename="meu-jogo.sb3"\r\n'
-        b"Content-Type: application/octet-stream\r\n\r\n"
+        b"Content-Type: application/x.scratch.sb3\r\n\r\n"
         b"conteudo"
         b"\r\n--bbbbbbbb--\r\n"
     )
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("meu-jogo.sb3", "application/x.scratch.sb3"),
+        ("Batidas-1.h2song", "application/xml"),
+        ("brilha.mid", "audio/midi"),
+        ("brilha.midi", "audio/midi"),
+        ("brilha.mp3", "audio/mpeg"),
+        ("brilha.wav", "audio/wav"),
+        ("desenho.png", "image/png"),
+        ("desenho.jpeg", "image/jpeg"),
+        ("anotacoes.txt", "application/octet-stream"),
+    ],
+)
+def test_each_type_goes_out_as_its_own_content_type(desktop, name, expected):
+    assert desktop.content_type_for(Path(name)) == expected
 
 
 def test_the_upload_body_keeps_the_bytes_read_before_the_file_changed(desktop, tmp_path: Path):

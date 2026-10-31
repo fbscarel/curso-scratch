@@ -50,11 +50,15 @@ pipewire-alsa
 wireplumber
 alsa-utils
 pavucontrol
+# Hydrogen needs a JACK provider for its build-time dependency (libjack.so);
+# pipewire-jack is the one that talks to the image's pipewire.
+pipewire-jack
 
 # Applications
 firefox
 firefox-i18n-pt-br
 turbowarp-desktop-lab
+hydrogen
 
 # "Entregar trabalho" desktop app (usr/local/bin/entregar-trabalho): Python + GTK 4
 python-gobject

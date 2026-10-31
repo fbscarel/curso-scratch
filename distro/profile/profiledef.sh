@@ -21,4 +21,5 @@ file_permissions=(
   ["/root"]="0:0:750"
   ["/usr/local/sbin/lab-setup"]="0:0:755"
   ["/usr/local/bin/entregar-trabalho"]="0:0:755"
+  ["/usr/local/bin/batidas"]="0:0:755"
 )

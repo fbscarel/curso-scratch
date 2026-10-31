@@ -48,6 +48,11 @@
         "Placement": "toolbar"
       },
       {
+        "Title": "Compositor",
+        "URL": "https://danielx.net/composer/",
+        "Placement": "toolbar"
+      },
+      {
         "Title": "Scratch",
         "URL": "https://scratch.mit.edu/",
         "Placement": "toolbar"

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Hand in a Scratch project to the classroom server.
+"""Hand in a Scratch project, song or audio file to the classroom server.
 
-The window lists the .sb3 projects saved in the kid's home directory, the class
-names (read from the server) and a button that hands the chosen file in. The
-server is the classroom one -- `http://sala.local:8000` by default; when it does
-not answer, the window asks for the address the teacher wrote on the board.
+The window lists the `.sb3` projects, the drum-machine songs (`.h2song`), the
+MIDI files (`.mid`, `.midi`) and the audio (`.mp3`, `.wav`) saved in the kid's
+home directory, the class names (read from the server) and a button that hands
+the chosen file in. The server is the classroom one -- `http://sala.local:8000`
+by default; when it does not answer, the window asks for the address the teacher
+wrote on the board.
 
-Only the window needs GTK: finding the projects, normalizing the address and
+Only the window needs GTK: finding the files, normalizing the address and
 talking to the API are importable without `gi`, which is what the tests use.
 """
 
@@ -45,7 +47,25 @@ UPLOAD_TIMEOUT = 120.0
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 MAX_DEPTH = 4
-ALLOWED_EXTENSIONS = (".sb3", ".sprite3", ".png", ".jpg", ".jpeg", ".wav", ".mp3")
+# Everything the server accepts; the "Outro arquivo…" chooser offers all of it.
+ALLOWED_EXTENSIONS = (".sb3", ".sprite3", ".png", ".jpg", ".jpeg", ".wav", ".mp3", ".mid", ".midi", ".h2song")
+# What the window lists by itself: the Scratch project plus the files the music
+# classes hand in (the editable song and the exported audio).
+LISTED_EXTENSIONS = (".sb3", ".mid", ".midi", ".h2song", ".mp3", ".wav")
+# The server tells the types apart by extension, but the part's Content-Type is
+# what a proxy or a browser log on the way shows, so it is the real one.
+MIME_TYPES = {
+    ".sb3": "application/x.scratch.sb3",
+    ".sprite3": "application/x.scratch.sprite3",
+    ".h2song": "application/xml",
+    ".mid": "audio/midi",
+    ".midi": "audio/midi",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
 
 CSRF_HEADER = "X-CSRF-Token"
 CSRF_CODE = "csrf"
@@ -97,10 +117,12 @@ def unmodified_copy(path: Path, skel: Path = SKEL_AULAS) -> bool:
 
 
 def projetos(home: Path | None = None, skel: Path | None = None) -> list[Path]:
-    """The kid's `.sb3` files under the home directory, newest first.
+    """The kid's projects, songs and audio under the home directory, newest first.
 
-    Untouched copies of the class projects are left out, hidden folders are
-    skipped and the walk goes no deeper than `MAX_DEPTH`.
+    Untouched copies of the class projects are left out (only `.sb3` files have
+    one), hidden folders and files are skipped (Hydrogen keeps its autosave in
+    a dot-file) and the walk goes no deeper than
+    `MAX_DEPTH`.
     """
     home = Path.home() if home is None else home
     skel = SKEL_AULAS if skel is None else skel
@@ -110,8 +132,12 @@ def projetos(home: Path | None = None, skel: Path | None = None) -> list[Path]:
         folders[:] = [] if depth >= MAX_DEPTH else [name for name in folders if not name.startswith(".")]
         for name in files:
             path = Path(root) / name
-            if name.lower().endswith(".sb3") and path.is_file() and not unmodified_copy(path, skel):
-                found.append(path)
+            suffix = path.suffix.lower()
+            if name.startswith(".") or suffix not in LISTED_EXTENSIONS or not path.is_file():
+                continue
+            if suffix == ".sb3" and unmodified_copy(path, skel):
+                continue
+            found.append(path)
     # A file may be gone by now (the kid moved or deleted it while the walk ran):
     # drop it instead of letting the sort raise FileNotFoundError.
     found = [path for path in found if path.is_file()]
@@ -172,6 +198,11 @@ def normalize_address(text: str, *, port: int = DEFAULT_PORT) -> str:
 # --- the server ------------------------------------------------------------
 
 
+def content_type_for(path: Path) -> str:
+    """The type the file's part in the upload body goes out as."""
+    return MIME_TYPES.get(path.suffix.lower(), "application/octet-stream")
+
+
 def multipart_body(
     path: Path, data: bytes, *, field: str = "file", boundary: str | None = None
 ) -> tuple[bytes, str]:
@@ -186,7 +217,7 @@ def multipart_body(
     head = (
         f"--{boundary}\r\n"
         f'Content-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
-        "Content-Type: application/octet-stream\r\n\r\n"
+        f"Content-Type: {content_type_for(path)}\r\n\r\n"
     ).encode("utf-8")
     tail = f"\r\n--{boundary}--\r\n".encode("utf-8")
     return head + data + tail, f"multipart/form-data; boundary={boundary}"
@@ -413,7 +444,7 @@ def application(gtk, glib):
                 getattr(root, f"set_margin_{side}")(24)
             self.set_child(root)
 
-            root.append(self._heading("1. Escolha o projeto"))
+            root.append(self._heading("1. Escolha o arquivo"))
             self.list_box = gtk.ListBox(selection_mode=gtk.SelectionMode.SINGLE)
             self.list_box.connect("row-selected", lambda *_: self._check())
             scroll = gtk.ScrolledWindow(vexpand=True, min_content_height=200)
@@ -422,8 +453,8 @@ def application(gtk, glib):
 
             self.empty = gtk.Label(wrap=True, xalign=0)
             self.empty.set_markup(
-                "Nenhum projeto salvo ainda. No Scratch, use <b>Arquivo → Salvar como...</b> "
-                "e depois clique em <b>Procurar de novo</b>."
+                "Nenhum arquivo salvo ainda. No Scratch, use <b>Arquivo → Salvar como...</b>; "
+                "no Hydrogen, <b>Projeto → Salvar</b>. Depois clique em <b>Procurar de novo</b>."
             )
             root.append(self.empty)
 
@@ -600,7 +631,7 @@ def application(gtk, glib):
             dialog = gtk.FileChooserDialog(title="Escolha o arquivo", modal=True)
             dialog.add_button("_Cancelar", gtk.ResponseType.CANCEL)
             dialog.add_button("_Abrir", gtk.ResponseType.ACCEPT)
-            wanted = gtk.FileFilter(name="Arquivos do Scratch")
+            wanted = gtk.FileFilter(name="Arquivos da aula")
             for extension in ALLOWED_EXTENSIONS:
                 wanted.add_pattern(f"*{extension}")
             dialog.add_filter(wanted)

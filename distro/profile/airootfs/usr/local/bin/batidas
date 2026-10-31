@@ -1,0 +1,39 @@
+#!/bin/bash
+# Open a fresh copy of the drum-machine template, so the class one stays intact.
+set -eu
+
+template=/usr/share/scratchlab/musica/Batidas-modelo.h2song
+folder="$HOME/Músicas"
+
+if ! mkdir -p "$folder"; then
+    echo "Não consegui usar a pasta de músicas: $folder" >&2
+    exit 1
+fi
+
+number=1
+song=
+while [ -z "$song" ]; do
+    if [ "$number" -gt 999 ]; then
+        echo "Não achei um nome livre em $folder (Batidas-1 até Batidas-999)." >&2
+        exit 1
+    fi
+    candidate="$folder/Batidas-$number.h2song"
+    # noclobber makes the create itself the "is this name free?" test: two
+    # launches that start together never both pick the same number. A failure
+    # that is not "the name is taken" is not worth another number.
+    if ( set -C; : > "$candidate" ) 2>/dev/null; then
+        song=$candidate
+    elif [ -e "$candidate" ] || [ -L "$candidate" ]; then
+        number=$((number + 1))
+    else
+        echo "Não consegui criar a música nova em $folder." >&2
+        exit 1
+    fi
+done
+if ! cp "$template" "$song"; then
+    rm -f "$song"
+    echo "Não consegui copiar a música-modelo para $folder." >&2
+    exit 1
+fi
+
+exec hydrogen "$song"
