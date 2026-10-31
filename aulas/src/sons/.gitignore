@@ -1,0 +1,3 @@
+# Os sons do curso são nossos (CC0, gerados por tools/build_sons.py): são
+# pequenos e o build_sb3.py os embute nos .sb3, então ficam versionados.
+!*.mp3

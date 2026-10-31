@@ -20,6 +20,12 @@ teacher saved it and only validated here. Aula5-Pong-pronto.sb3 is that same
 file with the meeting's two steps patched in (Sb3File), so the demo and the
 projector always show one project.
 
+The music starters (Aulas 6 and 7) are drawn here too; their demos are the
+starter with one of our own MP3s (src/sons/, written by tools/build_sons.py)
+and the class's two scripts patched in, the same way. Those MP3s are decoded
+with ffmpeg here, because a Scratch sound carries the rate and sample count of
+its decoded audio, not of the MP3 header.
+
 Usage:
     python3 tools/build_sb3.py           # build every .sb3 project
     python3 tools/build_sb3.py --check   # validate the generated .sb3 files
@@ -31,6 +37,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import unicodedata
 import urllib.request
@@ -195,6 +202,29 @@ def local_costume(project, name: str, svg: str, rcx, rcy) -> dict:
     md5ext = f"{hashlib.md5(data).hexdigest()}.svg"
     project.generated[md5ext] = data
     return costume(name, md5ext, rcx, rcy)
+
+
+def sound_file(name: str, path: Path) -> tuple[dict, bytes]:
+    """A sound entry for a file we ship, plus its bytes.
+
+    Scratch takes `rate` and `sampleCount` from the decoded audio, not from
+    the MP3 header, so the file is decoded once with ffmpeg and counted.
+    """
+    data = path.read_bytes()
+    try:
+        rate = int(subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+             "stream=sample_rate", "-of", "csv=p=0", str(path)],
+            capture_output=True, check=True, text=True).stdout.strip())
+        pcm = subprocess.run(
+            ["ffmpeg", "-v", "error", "-i", str(path), "-f", "s16le", "-ac", "1",
+             "-ar", str(rate), "-"],
+            capture_output=True, check=True).stdout
+    except FileNotFoundError as error:
+        raise SystemExit(f"faltou o {error.filename}: instale o ffmpeg para ler "
+                         f"{path.relative_to(ROOT)}") from error
+    md5ext = f"{hashlib.md5(data).hexdigest()}.mp3"
+    return sound(name, md5ext, rate, len(pcm) // 2), data
 
 
 def fetch_asset(md5ext: str) -> bytes:
@@ -790,6 +820,20 @@ class Sb3File:
         for block_id in drop:
             del blocks[block_id]
         return last
+
+    def add_sound(self, target_name: str, item: dict, data: bytes) -> None:
+        """Append a sound to a target and carry its bytes into the save."""
+        self.target(target_name)["sounds"].append(item)
+        self.assets[item["md5ext"]] = data
+
+    def script(self, target_name: str, x: int, y: int, *block_ids: str) -> str:
+        """Turn a chain of new blocks into a top-level script on the workspace."""
+        blocks = self.blocks(target_name)
+        first, _ = self._chain(blocks, block_ids)
+        blocks[first]["topLevel"] = True
+        blocks[first]["x"] = x
+        blocks[first]["y"] = y
+        return first
 
     def set_literal(self, target_name: str, anchor_id: str, input_name: str, value) -> None:
         """Rewrite the number/text literal of an input, keeping its primitive."""
@@ -1533,6 +1577,89 @@ def build_pong_pronto(sb3: Sb3File) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Projects 6 and 7 - Music: the melody of Aula 6 and the beat of Aula 7
+# ---------------------------------------------------------------------------
+
+SONS = ROOT / "src" / "sons"
+BEAT_SECONDS = 0.5          # 120 BPM: one beat, and one costume step
+
+BALLERINA = [
+    costume("ballerina-a", "5197d3778baf55da6b81b3ada1e10021.svg",
+            31.00008984350052, 49),
+    costume("ballerina-b", "4ccb1752a43f48aafe490c9c08e58c27.svg",
+            29.496239121982484, 23.769351839794098),
+    costume("ballerina-c", "fc02bf591dd3d91eeeb50c7424d08274.svg",
+            59.502591601941845, 59.184989331170854),
+    costume("ballerina-d", "5aae21aee33c3f1ae943af5ea11254bf.svg",
+            36.40099014292747, 77.95160112758442),
+]
+DRUM_KIT = [
+    costume("drum-kit", "baf6344b6f55b074786a383c1097697d.svg", 58, 78),
+    costume("drum-kit-b", "3f4fb4836338c55f883607c403b2b25e.svg", 58, 78),
+]
+
+
+def _musica_scene() -> Project:
+    project = Project()
+    project.stage.costumes = [BACKDROP_BLUE_SKY]
+    return project
+
+
+def build_melodias() -> Project:
+    """Starter: the stage and one dancer, for the kid's own MP3."""
+    project = _musica_scene()
+    project.sprite("Bailarina", costumes=BALLERINA)
+    return project
+
+
+def build_batidas() -> Project:
+    """Starter: the same dancer plus a drum kit, for kids who missed Aula 6."""
+    project = _musica_scene()
+    project.sprite("Bailarina", costumes=BALLERINA, x=-100)
+    project.sprite("Bateria", costumes=DRUM_KIT, x=100)
+    return project
+
+
+def add_song(sb3: Sb3File, target_name: str, name: str, path: Path) -> None:
+    item, data = sound_file(name, path)
+    sb3.add_sound(target_name, item, data)
+
+
+def beat_scripts(sb3: Sb3File, target_name: str, sound_name: str, x: int) -> None:
+    """`quando ⚑` -> `toque o som (...) até o fim`, and `quando ⚑` -> `sempre`.
+
+    The `sempre` needs its own hat: a loop left loose on the workspace never
+    runs, and hanging it after the sound would freeze the costume for 16 s.
+    """
+    menu = sb3.new(target_name, "sound_sounds_menu",
+                   fields={"SOUND_MENU": [sound_name, None]}, shadow=True)
+    hat = sb3.new(target_name, "event_whenflagclicked")
+    play = sb3.new(target_name, "sound_playuntildone",
+                   {"SOUND_MENU": [INPUT_SAME_BLOCK_SHADOW, menu]})
+    sb3.script(target_name, x, 40, hat, play)
+
+    beat_hat = sb3.new(target_name, "event_whenflagclicked")
+    forever = sb3.new(target_name, "control_forever")
+    sb3.set_substack(target_name, forever,
+                     sb3.new(target_name, "looks_nextcostume"),
+                     sb3.new(target_name, "control_wait",
+                             {"DURATION": i_positive(BEAT_SECONDS)}))
+    sb3.script(target_name, x, 140, beat_hat, forever)
+
+
+def build_melodias_pronto(sb3: Sb3File) -> None:
+    add_song(sb3, "Bailarina", "Melodia", SONS / "melodia.mp3")
+    beat_scripts(sb3, "Bailarina", "Melodia", 60)
+
+
+def build_batidas_pronto(sb3: Sb3File) -> None:
+    add_song(sb3, "Bailarina", "Melodia", SONS / "melodia.mp3")
+    add_song(sb3, "Bateria", "Batida", SONS / "batida.mp3")
+    beat_scripts(sb3, "Bailarina", "Melodia", 60)
+    beat_scripts(sb3, "Bateria", "Batida", 320)
+
+
+# ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
 
@@ -1636,6 +1763,17 @@ def check_sb3(path: Path) -> list[str]:
     extra = set(members) - used_assets
     if extra:
         problems.append(f"unused assets in the zip: {sorted(extra)}")
+
+    # Scratch takes a sound's rate and sampleCount from the decoded audio; a
+    # missing or zero pair leaves the sound with no length in the editor
+    for target in targets:
+        for item in target.get("sounds", []):
+            rate, count = item.get("rate"), item.get("sampleCount")
+            if not isinstance(rate, int) or rate <= 0 \
+                    or not isinstance(count, int) or count <= 0:
+                problems.append(
+                    f"{target['name']}: som {item['name']} sem rate/sampleCount validos "
+                    f"({rate!r}/{count!r})")
 
     # blocks
     sprite_names = {t["name"] for t in targets if not t["isStage"]}
@@ -1791,10 +1929,16 @@ def main() -> int:
         "projetos/Aula3-PegaFrutas.sb3": build_pega_frutas,
         "demos/Aula3-PegaFrutas-pronto.sb3": build_pega_frutas_pronto,
         "projetos/Aula4-Pong.sb3": build_pong,
+        "projetos/Aula6-Melodias.sb3": build_melodias,
+        "projetos/Aula7-Batidas.sb3": build_batidas,
     }
     # Patched from a saved file instead of drawn from scratch: (base, recipe).
     patched = {
         "demos/Aula5-Pong-pronto.sb3": (PONG_DEMO_BASE, build_pong_pronto),
+        "demos/Aula6-Melodias-pronto.sb3": ("projetos/Aula6-Melodias.sb3",
+                                            build_melodias_pronto),
+        "demos/Aula7-Batidas-pronto.sb3": ("projetos/Aula7-Batidas.sb3",
+                                           build_batidas_pronto),
     }
     # The class's own saves: committed as the teacher saved them, never rewritten.
     verbatim = ["projetos/Aula5-PongInicio.sb3"]
