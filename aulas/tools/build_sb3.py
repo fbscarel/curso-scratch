@@ -1451,7 +1451,7 @@ def build_pong() -> Project:
 
 
 # The file the class opens on 03/11: the teacher's save after meeting 10,
-# committed as saved. Swap this line for the teacher's fixed file when it lands.
+# committed as saved. The demo is that file plus the meeting's two steps.
 PONG_DEMO_BASE = "projetos/Aula5-PongInicio.sb3"
 
 WIN_TEXT = "Vitória do jogador "
