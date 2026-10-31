@@ -39,3 +39,13 @@ aulas:
       - "Com `sempre` + `se tecla w pressionada? então` a raquete anda **sem engasgar**, e dá para jogar **em dupla** no mesmo teclado."
     projeto: Aula4-Pong
     projeto_descricao: "Pong: a quadra com a rede, as duas raquetes e a bola, prontas para você programar."
+  - numero: 5
+    titulo: "Pong: o placar e as regras"
+    data: 2026-11-03
+    resumo:
+      - "Jogamos o Pong em dupla e lemos o script da **Bola**: o `bola_centro` e as variáveis **vx** e **vy**, que são **só da Bola**."
+      - "História: o **Magnavox Odyssey** (1972), o primeiro console de casa, e o **Home Pong** da Atari (1975), que levou o Pong para a sala."
+      - "O jogo agora **acaba aos 7**: o `fim_jogo (jogador)` mostra *Vitória do jogador 1* por **2 segundos** e para tudo com `pare todos` — sem esse tempo, o `pare` apagaria o balão de fala."
+      - "A bola **acelera a cada rebatida**: `adicione 1 a vx` depois da Raquete1 e `adicione -1 a vx` depois da Raquete2 — o **sinal** do vx diz para onde a bola vai."
+    projeto: Aula5-PongInicio
+    projeto_descricao: "Pong: o placar dos dois jogadores e o saque do meio prontos — falta a vitória aos 7 e a bola acelerando."

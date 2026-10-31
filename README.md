@@ -79,6 +79,10 @@ pelo nome `sala.local`, `avahi` e `nss-mdns`. O que a sala guarda fica em `sala/
       [Commons](https://commons.wikimedia.org/wiki/File:Spacewar!-PDP-1-20070512.jpg).
     - `pong-fliperama.jpg` — Chris Rand, [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) —
       [Commons](https://commons.wikimedia.org/wiki/File:Signed_Pong_Cabinet.jpg).
+    - `magnavox-odyssey.jpg` — Evan-Amos, domínio público —
+      [Commons](https://commons.wikimedia.org/wiki/File:Magnavox-Odyssey-Console-Set.jpg).
+    - `home-pong.jpg` — Evan-Amos, [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) —
+      [Commons](https://commons.wikimedia.org/wiki/File:TeleGames-Atari-Pong.jpg).
 
 Scratch é um projeto da Scratch Foundation, em colaboração com o Lifelong Kindergarten Group do MIT
 Media Lab. Curso independente, sem afiliação ao MIT ou à Scratch Foundation.
