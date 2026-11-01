@@ -20,9 +20,9 @@ kind: doc
 
 - ☐ **Fones de ouvido em todos os computadores** e as **caixas de som no mudo**: com 12 músicas tocando ao mesmo tempo, ninguém ouve nada. As crianças trazem os seus (com fio); tenha 3 ou 4 sobressalentes.
 - ☐ No notebook: `cd ~/scratch && git pull` — as folhas desta aula vêm do repositório.
-- ☐ Com a Sala no ar (se o notebook reiniciou: `cd ~/scratch/sala && just sala`), abra o painel. Em **Aulas**, confira que a **Aula 6 (06/11)** está cadastrada: sem ela, a ficha e os desafios não aparecem para a turma. Se faltar, cadastre agora.
+- ☐ Com a Sala no ar (se o notebook reiniciou: `cd ~/scratch/sala && just sala`), abra o painel. Em **Aulas**, a Sala conta os **encontros** (um por dia de aula), não as aulas deste roteiro: confira que **hoje** tem uma linha. Se faltar, em **Adicionar aula** o número (o próximo encontro) e a data (hoje) já vêm preenchidos: clique **Adicionar**. A ficha e os desafios desta aula já aparecem para a turma em **Folhas**.
 - ☐ Ainda no painel, em **Jogos**: **Um jogo** e, em **Jogo ativo**, o **Super Mario Bros.** — é o jogo dos primeiros 3 minutos. No placar dele a criança digita a pontuação que aparece no jogo: confira em **Entregas** quem anotou.
-- ☐ Em **Aulas → Música**, deixe a telha **Batidas (Groovie)** **desligada** nesta aula: ela entra na Aula 7.
+- ☐ Em **Aulas**, coluna **Música**, deixe a caixa **Batidas (Groovie)** **desmarcada** na linha de hoje: a telha entra na Aula 7.
 - ☐ **Abra o `danielx.net/composer` num computador do laboratório, hoje, antes da aula**, e faça uma nota tocar e um MP3 sair (**Save/Load → Export to .wav or .mp3**): a aula depende da internet da escola e do site estar no ar. Na primeira vez o Firefox pergunta se o site pode usar os **dispositivos MIDI**: não é preciso — a resposta é **Não permitir**.
 - ☐ Ligar os computadores (pendrive, "copiar para RAM"). Nos computadores novos o Firefox já tem o favorito **Compositor**; nos pendrives antigos, digite `danielx.net/composer` na barra de endereços.
 - ☐ Projetor com `aula6-slides.pdf`; no notebook, deixe aberto `aulas/demos/Aula6-Melodias-pronto.sb3`: é a bailarina desta aula pronta, para mostrar.

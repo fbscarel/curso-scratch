@@ -20,8 +20,8 @@ kind: doc
 
 - ☐ **Fones de ouvido em todos os computadores** e as **caixas de som no mudo** (as crianças trazem os seus, com fio; 3 ou 4 sobressalentes).
 - ☐ No notebook: `cd ~/scratch && git pull` — as folhas desta aula vêm do repositório.
-- ☐ Com a Sala no ar (se o notebook reiniciou: `cd ~/scratch/sala && just sala`), abra o painel. Em **Aulas**, confira que a **Aula 7 (10/11)** está cadastrada; se faltar, cadastre agora.
-- ☐ Na mesma tela, coluna **Música**, marque a caixa **Batidas (Groovie)** na linha da Aula 7: a turma passa a ver a telha **Batidas** (a linha "Monte uma batida") na página da Sala. Ela **não** depende do jogo do dia.
+- ☐ Com a Sala no ar (se o notebook reiniciou: `cd ~/scratch/sala && just sala`), abra o painel. Em **Aulas**, a Sala conta os **encontros** (um por dia de aula), não as aulas deste roteiro: confira que **hoje** tem uma linha. Se faltar, em **Adicionar aula** o número (o próximo encontro) e a data (hoje) já vêm preenchidos: clique **Adicionar**.
+- ☐ Na mesma tela, coluna **Música**, marque a caixa **Batidas (Groovie)** na **linha de hoje** (a da data de hoje, não a "Aula 7"): a turma passa a ver a telha **Batidas** (a linha "Monte uma batida") na página da Sala. Ela **não** depende do jogo do dia. Se a aula de batidas continuar no encontro seguinte, marque a linha dele também.
 - ☐ Em **Jogos**, escolha **Desligados**: hoje não tem jogo, a aula é de música.
 - ☐ Confira que os computadores estão com a **imagem nova**: com um **clique com o botão direito no fundo da tela** aparece o atalho **Batidas (Hydrogen)** (entre **Navegador (Firefox)** e **Entregar trabalho**). Abra-o num computador do laboratório: a música **Batidas-1.h2song** (em **Músicas**) tem que abrir com o kit **TR808EmulationKit**, **120** BPM, **4/4** e os quatro padrões **vazios**, sem nenhum aviso para fechar.
 - ☐ Projetor com `aula7-slides.pdf`; no notebook, deixe aberto `aulas/demos/Aula7-Batidas-pronto.sb3`.
@@ -51,7 +51,7 @@ Cerca de **45 minutos úteis**, contando a partir do momento em que a turma est�
 
 Três perguntas rápidas (slide 2): *"Quantas notas tem a escala e depois do si vem qual?"* (sete; vem o **dó** de novo) · *"O que é o C4?"* (o dó do **meio**, na **oitava** 4) · *"Quanto dura uma batida a 120 bpm?"* (**0,5 segundo**).
 
-Cada um abre a **Sala** → **Meus arquivos** → o seu projeto da Aula 6 (o nome que ele deu: **Melodias**). **Quem faltou na Aula 6** abre o projeto **`Aula7-Batidas`** da pasta **Aulas** e importa a melodia que tiver. Aperte a **bandeira verde**: a música toca e a bailarina dança. *"Hoje essa música vai ganhar uma **bateria** — e as duas vão tocar juntas."*
+Cada um abre a **Sala** → **Meus arquivos** → o seu projeto da Aula 6 (o nome que ele deu: **Melodias**). Na Sala ele aparece sob o **encontro** daquele dia, que é o **primeiro da lista** (por exemplo "Aula 12"): **não** é o grupo "Aula 6", que guarda o Pong de outubro. **Quem faltou na Aula 6** abre o projeto **`Aula7-Batidas`** da pasta **Aulas** e importa a melodia que tiver. Aperte a **bandeira verde**: a música toca e a bailarina dança. *"Hoje essa música vai ganhar uma **bateria** — e as duas vão tocar juntas."*
 
 <div class="teacher" markdown="1">
 Os projetos de **Meus arquivos** são os `.sb3` que a turma entregou na Aula 6 (a Sala guarda uma cópia por criança e por aula). Quem não entregou ou mudou de computador continua do **`Aula7-Batidas`** — por isso ele existe: é o mesmo palco, com a **Bailarina** e a **Bateria**, sem som nenhum.

@@ -19,7 +19,7 @@ kind: doc
 ## Antes da aula
 
 - ☐ No notebook: `cd ~/scratch && git pull` — as folhas desta aula vêm do repositório.
-- ☐ Com a Sala no ar (se o notebook reiniciou: `cd ~/scratch/sala && just sala`), abra o painel. Em **Aulas**, confira que a **Aula 5 (03/11)** está cadastrada: sem ela, a ficha e os desafios não aparecem para a turma. Se faltar, cadastre agora.
+- ☐ Com a Sala no ar (se o notebook reiniciou: `cd ~/scratch/sala && just sala`), abra o painel. Em **Aulas**, a Sala conta os **encontros** (um por dia de aula), não as aulas deste roteiro: confira que **hoje** tem uma linha. Se faltar, em **Adicionar aula** o número (o próximo encontro — em 03/11, o **11**) e a data (hoje) já vêm preenchidos: clique **Adicionar**. A ficha e os desafios desta aula já aparecem para a turma em **Folhas**.
 - ☐ Ainda no painel, em **Aula atual**, suba como **Projeto da aula** o arquivo `~/scratch/aulas/projetos/Aula5-PongInicio.sb3` — o do **repositório**, nunca a cópia de trabalho do notebook.
 - ☐ Em **Jogos**: **Um jogo** e, em **Jogo ativo**, o **Pong** (ou **Desligados**).
 - ☐ Ligar os computadores (pendrive, "copiar para RAM").

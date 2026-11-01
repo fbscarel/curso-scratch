@@ -23,7 +23,7 @@ kind: slides
 
 <div style="font-size: 26pt" markdown="1">
 
-1. **Sala → Meus arquivos** → o seu projeto da Aula 6
+1. **Sala → Meus arquivos** → o seu projeto da **última aula** (o primeiro da lista)
 2. **Bandeira verde**: a música toca e a bailarina dança
 3. Hoje ela ganha uma **bateria** — e as duas tocam **juntas**!
 
